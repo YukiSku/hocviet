@@ -1,28 +1,39 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { checkAnswer } from '../db';
 
-function stripToneMarks(str) {
-  return str.normalize('NFD').replace(/[\u0300\u0301\u0303\u0309\u0323]/g, '').normalize('NFC');
-}
-
-function normalize(str, mode) {
-  const trimmed = str.trim().toLowerCase();
-  return mode === 'beginner' ? stripToneMarks(trimmed) : trimmed;
-}
-
-export default function PracticeMode({ words, mode }) {
-  const [currentWord, setCurrentWord] = useState(() => pickRandom(words));
+export default function PracticeMode({ words, allTags, mode }) {
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [started, setStarted] = useState(false);
+  const [currentWord, setCurrentWord] = useState(null);
   const [input, setInput] = useState('');
   const [result, setResult] = useState(null);
   const [attemptCount, setAttemptCount] = useState(1);
 
+  const filteredWords = useMemo(() => {
+    if (selectedTags.length === 0) return words;
+    return words.filter(word =>
+      word.tags.some(tag => selectedTags.includes(tag))
+    );
+  }, [words, selectedTags]);
+
   function pickRandom(list) {
+    if (!list || list.length === 0) return null;
     return list[Math.floor(Math.random() * list.length)];
+  }
+
+  function handleStart() {
+    if (filteredWords.length === 0) {
+      alert('選択したタグに該当する単語がありません');
+      return;
+    }
+    setCurrentWord(pickRandom(filteredWords));
+    setStarted(true);
   }
 
   function handleSubmit(e) {
     e.preventDefault();
     if (!input.trim()) return;
-    const isCorrect = normalize(input, mode) === normalize(currentWord.spelling, mode);
+    const isCorrect = checkAnswer(input, currentWord.spelling, mode);
     setResult(isCorrect ? 'correct' : 'incorrect');
   }
 
@@ -33,23 +44,78 @@ export default function PracticeMode({ words, mode }) {
   }
 
   function handleStopRepeat() {
-    setCurrentWord(pickRandom(words));
+    setCurrentWord(pickRandom(filteredWords));
     setInput('');
     setResult(null);
     setAttemptCount(1);
   }
 
+  function toggleTag(tag) {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  }
+
+  if (!started) {
+    return (
+      <div className="rounded-2xl shadow-md bg-gray-50 dark:bg-gray-800 p-6">
+        <h2 className="text-lg font-bold mb-4">ジャンルを選択</h2>
+        <div className="flex flex-wrap gap-2 mb-6">
+          {allTags.map(tag => (
+            <button
+              key={tag}
+              onClick={() => toggleTag(tag)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                selectedTags.includes(tag)
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+          {allTags.length === 0 && <p className="text-gray-500">タグがありません</p>}
+        </div>
+        <button
+          onClick={handleStart}
+          className="w-full rounded-lg bg-blue-600 text-white py-3 font-medium hover:bg-blue-700 active:scale-[0.98] transition"
+        >
+          {selectedTags.length > 0 ? `${selectedTags.length}個のジャンルで開始` : 'すべての単語で開始'}
+        </button>
+      </div>
+    );
+  }
+
+  if (!currentWord) return null;
+
   return (
     <div className="rounded-2xl shadow-md bg-gray-50 dark:bg-gray-800 p-6">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-          {mode === 'beginner' ? 'Beginner' : 'Normal'}
-        </span>
-        {attemptCount > 1 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {attemptCount}回目
+        <div className="flex flex-col">
+          <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {mode === 'word' ? '単語練習' : '練習'}
           </span>
-        )}
+          <div className="flex gap-1 mt-0.5">
+            {currentWord.tags.map(tag => (
+              <span key={tag} className="text-[10px] bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-400">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col items-end">
+          {attemptCount > 1 && (
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {attemptCount}回目
+            </span>
+          )}
+          <button
+            onClick={() => setStarted(false)}
+            className="text-[10px] text-blue-600 dark:text-blue-400 underline mt-1"
+          >
+            ジャンル変更
+          </button>
+        </div>
       </div>
 
       <p className="text-2xl font-semibold text-center my-6">
@@ -89,7 +155,7 @@ export default function PracticeMode({ words, mode }) {
               result === 'correct' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
             }`}
           >
-            {result === 'correct' ? '正解！' : `不正解：${currentWord.spelling}`}
+            {result === 'correct' ? '正解！' : `不正解：${currentWord.spelling.replace(/[;；,，]/g, ' / ')}`}
           </p>
 
           <div className="flex gap-3">

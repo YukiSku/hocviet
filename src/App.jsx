@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { initDb, getAllWords } from './db';
+import { initDb, getAllWords, getAllTags } from './db';
 import { getTheme, setTheme as saveTheme } from './settings';
 import PracticeMode from './components/PracticeMode';
 import MasterMode from './components/MasterMode';
@@ -9,6 +9,7 @@ function App() {
     const [dbReady, setDbReady] = useState(false);
     const [tab, setTab] = useState('practice'); // 'practice' | 'master' | 'settings'
     const [words, setWords] = useState([]);
+    const [allTags, setAllTags] = useState([]);
     const [theme, setThemeState] = useState('system');
     const [initError, setInitError] = useState(null);
 
@@ -17,6 +18,7 @@ function App() {
             try {
                 await initDb();
                 setWords(await getAllWords());
+                setAllTags(await getAllTags());
                 const savedTheme = await getTheme();
                 setThemeState(savedTheme);
                 setDbReady(true);
@@ -37,6 +39,7 @@ function App() {
     useEffect(() => {
         if (tab === 'practice') {
             getAllWords().then(setWords);
+            getAllTags().then(setAllTags);
         }
     }, [tab]);
 
@@ -58,7 +61,7 @@ function App() {
     return (
         <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
           <div className="max-w-md mx-auto p-4">
-            <h1 className="text-base font-bold mb-4">đang phát triển</h1>
+            <div className="text-base text-gray-700 mb-4">đang phát triển</div>
 
             <div className="flex gap-2 mb-4">
               <button
@@ -83,7 +86,7 @@ function App() {
 
             {tab === 'practice' && (
               words.length > 0
-                ? <PracticeMode words={words} mode="beginner" />
+                ? <PracticeMode words={words} allTags={allTags} mode="word" />
                 : <p className="text-center text-gray-500 dark:text-gray-400">先に単語を登録してください</p>
             )}
             {tab === 'master' && <MasterMode />}

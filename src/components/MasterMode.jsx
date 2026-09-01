@@ -52,7 +52,7 @@ export default function MasterMode() {
         <input
           value={spelling}
           onChange={(e) => setSpelling(e.target.value)}
-          placeholder="スペル（例: xin chào）"
+          placeholder="スペル（複数可: chào; xin chào）"
           className="w-full rounded-lg border px-3 py-2 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
         />
         <input

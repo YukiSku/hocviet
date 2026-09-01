@@ -103,6 +103,39 @@ export async function getAllWords() {
   return words;
 }
 
+export async function getAllTags() {
+  const database = getDb();
+  const result = await database.query('SELECT name FROM tags ORDER BY name ASC');
+  return (result.values ?? []).map((t) => t.name);
+}
+
+export async function getWordsByTags(tagNames) {
+  if (!tagNames || tagNames.length === 0) return getAllWords();
+
+  const database = getDb();
+  const placeholders = tagNames.map(() => '?').join(',');
+  const query = `
+    SELECT DISTINCT w.* FROM words w
+    JOIN word_tags wt ON w.id = wt.word_id
+    JOIN tags t ON wt.tag_id = t.id
+    WHERE t.name IN (${placeholders})
+    ORDER BY w.created_at DESC
+  `;
+  const wordsResult = await database.query(query, tagNames);
+  const words = wordsResult.values ?? [];
+
+  for (const word of words) {
+    const tagsResult = await database.query(
+      `SELECT t.name FROM tags t
+       JOIN word_tags wt ON wt.tag_id = t.id
+       WHERE wt.word_id = ?`,
+      [word.id]
+    );
+    word.tags = (tagsResult.values ?? []).map((t) => t.name);
+  }
+  return words;
+}
+
 // --- タグのヘルパー ---
 
 async function linkTag(wordId, tagName, inTransaction = false) {
@@ -141,4 +174,41 @@ export async function importWordsFromCsv(rows) {
     await database.rollbackTransaction();
     throw e;
   }
+}
+
+// --- 正誤判定ロジック ---
+
+/**
+ * ベトナム語の声調記号を除去する
+ */
+export function stripToneMarks(str) {
+  if (!str) return '';
+  return str.normalize('NFD').replace(/[\u0300\u0301\u0303\u0309\u0323]/g, '').normalize('NFC');
+}
+
+/**
+ * テキストの正規化（トリム、小文字化、必要に応じて声調除去）
+ */
+export function normalizeText(str, options = {}) {
+  const { stripTone = false } = options;
+  let result = (str ?? '').trim().toLowerCase();
+  if (stripTone) {
+    result = stripToneMarks(result);
+  }
+  return result;
+}
+
+/**
+ * 正誤判定を行う
+ * @param {string} input ユーザー入力
+ * @param {string} target 正解のスペル
+ * @param {string} mode 練習モード ('word' | 'sentence')
+ * @returns {boolean}
+ */
+export function checkAnswer(input, target, mode = 'word') {
+  // ターゲットが ";" または "," で区切られている場合に対応
+  const targets = target.split(/[;；,，]/).map(t => t.trim()).filter(Boolean);
+  const normalizedInput = normalizeText(input);
+
+  return targets.some(t => normalizeText(t) === normalizedInput);
 }
