@@ -58,7 +58,7 @@ function App() {
     return (
         <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
           <div className="max-w-md mx-auto p-4">
-            <h1 className="text-base font-bold mb-4">Tôi đang phát triển ứng dụng.</h1>
+            <h1 className="text-base font-bold mb-4">đang phát triển</h1>
 
             <div className="flex gap-2 mb-4">
               <button
