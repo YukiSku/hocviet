@@ -2,12 +2,15 @@ import { useRef, useState, useEffect } from 'react';
 import { NativeSettings, AndroidSettings } from 'capacitor-native-settings';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { parseCsv } from '../csv';
-import { importWordsFromCsv } from '../db';
+import { importWordsFromCsv, importMinimalPairsFromCsv } from '../db';
 
 export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
   const fileInputRef = useRef(null);
+  const minimalPairInputRef = useRef(null);
   const [importStatus, setImportStatus] = useState(null); // { count } | { error }
+  const [minimalPairStatus, setMinimalPairStatus] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isMinimalImporting, setIsMinimalImporting] = useState(false);
   const [isViSupported, setIsViSupported] = useState(true);
 
   useEffect(() => {
@@ -66,6 +69,34 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
     };
     reader.readAsText(file, 'utf-8');
     e.target.value = ''; // 同じファイルを連続選択できるようにリセット
+  }
+
+  function handleMinimalPairFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsMinimalImporting(true);
+    setMinimalPairStatus(null);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const rows = parseCsv(event.target.result);
+        const count = await importMinimalPairsFromCsv(rows);
+        setMinimalPairStatus({ count });
+        // 聞き分けモードのインポート完了時も、必要ならリフレッシュなどの処理を追加可能
+      } catch (err) {
+        setMinimalPairStatus({ error: err.message });
+      } finally {
+        setIsMinimalImporting(false);
+      }
+    };
+    reader.onerror = () => {
+      setMinimalPairStatus({ error: 'ファイルの読み込みに失敗しました' });
+      setIsMinimalImporting(false);
+    };
+    reader.readAsText(file, 'utf-8');
+    e.target.value = '';
   }
 
   return (
@@ -159,6 +190,48 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
         {importStatus?.error && (
           <p className="text-sm text-red-600 dark:text-red-400 mt-2">
             エラー: {importStatus.error}
+          </p>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">聞き分けセットCSVインポート</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          1列目: set_id（グループID）、2列目: spelling、3列目: meaning
+        </p>
+        <button
+          onClick={() => minimalPairInputRef.current?.click()}
+          disabled={isMinimalImporting}
+          className={`w-full rounded-lg border py-3 font-medium transition-colors ${
+            isMinimalImporting
+              ? 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 cursor-not-allowed'
+              : 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+          }`}
+        >
+          {isMinimalImporting ? 'インポート中... (Đang nhập...)' : '聞き分けセットCSVを選択'}
+        </button>
+        <input
+          ref={minimalPairInputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleMinimalPairFileSelect}
+          className="hidden"
+        />
+
+        {isMinimalImporting && (
+          <div className="flex justify-center mt-3">
+            <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+          </div>
+        )}
+
+        {minimalPairStatus?.count !== undefined && !isMinimalImporting && (
+          <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+            {minimalPairStatus.count}件のアイテムをインポートしました
+          </p>
+        )}
+        {minimalPairStatus?.error && !isMinimalImporting && (
+          <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+            エラー: {minimalPairStatus.error}
           </p>
         )}
       </section>

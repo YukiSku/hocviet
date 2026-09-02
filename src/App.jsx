@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { initDb, getAllWords, getAllTags } from './db';
+import { loadInitialDataIfFirstTime } from './initialData';
 import { getTheme, setTheme as saveTheme } from './settings';
 import PracticeMode from './components/PracticeMode';
+import MinimalPairMode from './components/MinimalPairMode';
 import MasterMode from './components/MasterMode';
 import SettingsPanel from './components/SettingsPanel';
 
 function App() {
     const [dbReady, setDbReady] = useState(false);
-    const [tab, setTab] = useState('practice'); // 'practice' | 'master' | 'settings'
+    const [tab, setTab] = useState('practice'); // 'practice' | 'minimal' | 'master' | 'settings'
     const [words, setWords] = useState([]);
     const [allTags, setAllTags] = useState([]);
     const [theme, setThemeState] = useState('system');
@@ -17,6 +19,7 @@ function App() {
         (async () => {
             try {
                 await initDb();
+                await loadInitialDataIfFirstTime();
                 setWords(await getAllWords());
                 setAllTags(await getAllTags());
                 const savedTheme = await getTheme();
@@ -66,19 +69,25 @@ function App() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setTab('practice')}
-                      className={`flex-1 py-2 rounded-lg font-medium ${tab === 'practice' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                      className={`flex-1 py-2 rounded-lg font-medium text-xs ${tab === 'practice' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
                     >
-                      練習
+                      単語練習
+                    </button>
+                    <button
+                      onClick={() => setTab('minimal')}
+                      className={`flex-1 py-2 rounded-lg font-medium text-xs ${tab === 'minimal' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                    >
+                      聞き分け
                     </button>
                     <button
                       onClick={() => setTab('master')}
-                      className={`flex-1 py-2 rounded-lg font-medium ${tab === 'master' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                      className={`flex-1 py-2 rounded-lg font-medium text-xs ${tab === 'master' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
                     >
                       単語管理
                     </button>
                     <button
                       onClick={() => setTab('settings')}
-                      className={`flex-1 py-2 rounded-lg font-medium ${tab === 'settings' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                      className={`flex-1 py-2 rounded-lg font-medium text-xs ${tab === 'settings' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
                     >
                       設定
                     </button>
@@ -91,6 +100,7 @@ function App() {
                       ? <PracticeMode words={words} allTags={allTags} mode="word" />
                       : <p className="text-center text-gray-500 dark:text-gray-400">先に単語を登録してください</p>
                   )}
+                  {tab === 'minimal' && <MinimalPairMode />}
                   {tab === 'master' && <MasterMode />}
                   {tab === 'settings' && (
                     <SettingsPanel

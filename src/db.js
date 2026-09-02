@@ -39,6 +39,16 @@ export function initDb() {
         FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE,
         FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
       );
+      CREATE TABLE IF NOT EXISTS minimal_pair_sets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT
+      );
+      CREATE TABLE IF NOT EXISTS minimal_pair_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        set_id INTEGER NOT NULL,
+        spelling TEXT NOT NULL,
+        meaning TEXT NOT NULL,
+        FOREIGN KEY (set_id) REFERENCES minimal_pair_sets(id) ON DELETE CASCADE
+      );
     `);
 
     return db;
@@ -174,6 +184,68 @@ export async function importWordsFromCsv(rows) {
     await database.rollbackTransaction();
     throw e;
   }
+}
+
+// --- ミニマルペア（聞き分けモード）機能 ---
+
+/**
+ * 聞き分けセットのインポート
+ * CSVの set_id はグルーピング用に使用し、DB上の新しいセットIDに変換する
+ */
+export async function importMinimalPairsFromCsv(rows) {
+  const database = getDb();
+  await database.beginTransaction();
+  try {
+    const setsMap = new Map(); // CSV上のset_id -> DB上のsetId
+    let count = 0;
+
+    for (const row of rows) {
+      const { set_id, spelling, meaning } = row;
+      if (!set_id || !spelling || !meaning) continue;
+
+      let dbSetId;
+      if (setsMap.has(set_id)) {
+        dbSetId = setsMap.get(set_id);
+      } else {
+        const result = await database.run('INSERT INTO minimal_pair_sets DEFAULT VALUES', [], false);
+        dbSetId = result.changes.lastId;
+        setsMap.set(set_id, dbSetId);
+      }
+
+      await database.run(
+        'INSERT INTO minimal_pair_items (set_id, spelling, meaning) VALUES (?, ?, ?)',
+        [dbSetId, spelling, meaning],
+        false
+      );
+      count++;
+    }
+    await database.commitTransaction();
+    return count;
+  } catch (e) {
+    await database.rollbackTransaction();
+    throw e;
+  }
+}
+
+/**
+ * ランダムに1つのミニマルペアセットを取得する
+ */
+export async function getRandomMinimalPairSet() {
+  const database = getDb();
+  const result = await database.query('SELECT * FROM minimal_pair_sets ORDER BY RANDOM() LIMIT 1');
+  return result.values && result.values.length > 0 ? result.values[0] : null;
+}
+
+/**
+ * セットに紐づくアイテム一覧を取得する
+ */
+export async function getMinimalPairItems(setId) {
+  const database = getDb();
+  const result = await database.query(
+    'SELECT * FROM minimal_pair_items WHERE set_id = ?',
+    [setId]
+  );
+  return result.values ?? [];
 }
 
 // --- 正誤判定ロジック ---
