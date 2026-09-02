@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { checkAnswer } from '../db';
 
 export default function PracticeMode({ words, allTags, mode }) {
@@ -15,6 +16,23 @@ export default function PracticeMode({ words, allTags, mode }) {
       word.tags.some(tag => selectedTags.includes(tag))
     );
   }, [words, selectedTags]);
+
+  const handleSpeak = async (rate) => {
+    if (!currentWord) return;
+    try {
+      const textToSpeak = currentWord.spelling.split(/[;；,，]/)[0].trim();
+      await TextToSpeech.speak({
+        text: textToSpeak,
+        lang: 'vi-VN',
+        rate: rate,
+        pitch: 1.0,
+        volume: 1.1,
+      });
+    } catch (e) {
+      console.error('TTS error:', e);
+      alert('音声の再生に失敗しました。ベトナム語の言語パックがインストールされているか確認してください。');
+    }
+  };
 
   function pickRandom(list) {
     if (!list || list.length === 0) return null;
@@ -149,14 +167,40 @@ export default function PracticeMode({ words, allTags, mode }) {
       </form>
 
       {result !== null && (
-        <div className="mt-4 space-y-3">
-          <p
-            className={`text-center font-medium ${
-              result === 'correct' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-            }`}
-          >
-            {result === 'correct' ? '正解！' : `不正解：${currentWord.spelling.replace(/[;；,，]/g, ' / ')}`}
-          </p>
+        <div className="mt-4 space-y-4">
+          <div className="text-center space-y-2">
+            <p
+              className={`font-bold text-xl ${
+                result === 'correct' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              }`}
+            >
+              {result === 'correct' ? '正解！' : '不正解'}
+            </p>
+
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-2xl font-semibold">
+                {currentWord.spelling.replace(/[;；,，]/g, ' / ')}
+              </p>
+              <div className="flex gap-4 mt-1">
+                <button
+                  onClick={() => handleSpeak(0.9)}
+                  className="flex flex-col items-center gap-1 p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-100 dark:border-blue-800 active:scale-95 transition"
+                  title="通常速度で再生"
+                >
+                  <span className="text-2xl">🔊</span>
+                  <span className="text-[10px] font-bold">Normal</span>
+                </button>
+                <button
+                  onClick={() => handleSpeak(0.6)}
+                  className="flex flex-col items-center gap-1 p-2 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 border border-orange-100 dark:border-orange-800 active:scale-95 transition"
+                  title="ゆっくり再生"
+                >
+                  <span className="text-2xl">🐢</span>
+                  <span className="text-[10px] font-bold">Slow</span>
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div className="flex gap-3">
             <button

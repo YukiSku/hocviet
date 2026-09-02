@@ -48,54 +48,59 @@ function App() {
         await saveTheme(newTheme);
     }
 
-    if (initError) {
-        return (
-            <div className="p-4 text-center text-red-600">
+    return (
+        <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors pb-8">
+          <div className="max-w-md mx-auto p-4">
+            {initError ? (
+              <div className="p-4 text-center text-red-600">
                 <p>データベースの初期化に失敗しました</p>
                 <p className="text-xs mt-2">{initError}</p>
-            </div>
-        );
-    }
-    if (!dbReady) return <p className="text-center mt-8">読み込み中...</p>;
+              </div>
+            ) : !dbReady ? (
+              <p className="text-center mt-12 text-gray-500 animate-pulse">
+                読み込み中... (Đang tải...)
+              </p>
+            ) : (
+              <>
+                <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 py-2 mb-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setTab('practice')}
+                      className={`flex-1 py-2 rounded-lg font-medium ${tab === 'practice' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                    >
+                      練習
+                    </button>
+                    <button
+                      onClick={() => setTab('master')}
+                      className={`flex-1 py-2 rounded-lg font-medium ${tab === 'master' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                    >
+                      単語管理
+                    </button>
+                    <button
+                      onClick={() => setTab('settings')}
+                      className={`flex-1 py-2 rounded-lg font-medium ${tab === 'settings' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                    >
+                      設定
+                    </button>
+                  </div>
+                </div>
 
-    return (
-        <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
-          <div className="max-w-md mx-auto p-4">
-            <div className="text-base text-gray-700 mb-4">đang phát triển</div>
-
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => setTab('practice')}
-                className={`flex-1 py-2 rounded-lg font-medium ${tab === 'practice' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
-              >
-                練習
-              </button>
-              <button
-                onClick={() => setTab('master')}
-                className={`flex-1 py-2 rounded-lg font-medium ${tab === 'master' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
-              >
-                単語管理
-              </button>
-              <button
-                onClick={() => setTab('settings')}
-                className={`flex-1 py-2 rounded-lg font-medium ${tab === 'settings' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
-              >
-                設定
-              </button>
-            </div>
-
-            {tab === 'practice' && (
-              words.length > 0
-                ? <PracticeMode words={words} allTags={allTags} mode="word" />
-                : <p className="text-center text-gray-500 dark:text-gray-400">先に単語を登録してください</p>
-            )}
-            {tab === 'master' && <MasterMode />}
-            {tab === 'settings' && (
-              <SettingsPanel
-                theme={theme}
-                onThemeChange={handleThemeChange}
-                onImportDone={async () => setWords(await getAllWords())}
-              />
+                <div className="mt-2">
+                  {tab === 'practice' && (
+                    words.length > 0
+                      ? <PracticeMode words={words} allTags={allTags} mode="word" />
+                      : <p className="text-center text-gray-500 dark:text-gray-400">先に単語を登録してください</p>
+                  )}
+                  {tab === 'master' && <MasterMode />}
+                  {tab === 'settings' && (
+                    <SettingsPanel
+                      theme={theme}
+                      onThemeChange={handleThemeChange}
+                      onImportDone={async () => setWords(await getAllWords())}
+                    />
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
