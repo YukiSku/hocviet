@@ -63,6 +63,13 @@ export function getDb() {
 
 export async function addWord(spelling, meaning, tagNames = [], inTransaction = false) {
   const database = getDb();
+
+  // 重複チェック（スペルのみ）
+  const existing = await database.query('SELECT id FROM words WHERE spelling = ?', [spelling]);
+  if (existing.values && existing.values.length > 0) {
+    return null;
+  }
+
   const result = await database.run(
     'INSERT INTO words (spelling, meaning) VALUES (?, ?)',
     [spelling, meaning],
@@ -175,8 +182,8 @@ export async function importWordsFromCsv(rows) {
       const { spelling, meaning, tags } = row;
       if (!spelling || !meaning) continue;
       const tagList = tags ? tags.split(/[,、]/).map((t) => t.trim()).filter(Boolean) : [];
-      await addWord(spelling, meaning, tagList, true);
-      count++;
+      const wordId = await addWord(spelling, meaning, tagList, true);
+      if (wordId) count++;
     }
     await database.commitTransaction();
     return count;

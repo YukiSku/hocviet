@@ -50,7 +50,11 @@ export default function MasterMode() {
     if (editingId) {
       await updateWord(editingId, spelling, meaning, tags);
     } else {
-      await addWord(spelling, meaning, tags);
+      const result = await addWord(spelling, meaning, tags);
+      if (result === null) {
+        alert('この単語は既に登録されています。');
+        return;
+      }
     }
 
     setSpelling(''); setMeaning(''); setTagsInput(''); setEditingId(null);
