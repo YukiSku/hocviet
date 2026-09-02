@@ -259,11 +259,28 @@ export function stripToneMarks(str) {
 }
 
 /**
- * テキストの正規化（トリム、小文字化、必要に応じて声調除去）
+ * 新旧正書法による違いを吸収する（例: hòa -> hoà）
+ * 全てを「新正書法（複母音の2番目の母音に声調）」のスタイルに統一する
+ */
+export function normalizeVietnameseOrthography(str) {
+  if (!str) return '';
+  return str.normalize('NFD')
+    .replace(/o([\u0300\u0301\u0303\u0309\u0323])a/g, 'oa$1')
+    .replace(/o([\u0300\u0301\u0303\u0309\u0323])e/g, 'oe$1')
+    .replace(/u([\u0300\u0301\u0303\u0309\u0323])y/g, 'uy$1')
+    .normalize('NFC');
+}
+
+/**
+ * テキストの正規化（トリム、小文字化、正書法正規化、必要に応じて声調除去）
  */
 export function normalizeText(str, options = {}) {
   const { stripTone = false } = options;
   let result = (str ?? '').trim().toLowerCase();
+
+  // 正書法を正規化
+  result = normalizeVietnameseOrthography(result);
+
   if (stripTone) {
     result = stripToneMarks(result);
   }

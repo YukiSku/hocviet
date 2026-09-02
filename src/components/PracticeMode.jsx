@@ -128,7 +128,12 @@ export default function PracticeMode({ words, allTags, mode }) {
             </span>
           )}
           <button
-            onClick={() => setStarted(false)}
+            onClick={() => {
+              setStarted(false);
+              setInput('');
+              setResult(null);
+              setAttemptCount(1);
+            }}
             className="text-[10px] text-blue-600 dark:text-blue-400 underline mt-1"
           >
             ジャンル変更
