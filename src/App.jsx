@@ -60,9 +60,12 @@ function App() {
             <p className="text-xs mt-2">{initError}</p>
           </div>
         ) : !dbReady ? (
-          <p className="text-center mt-12 text-gray-500 animate-pulse">
-            読み込み中... (Đang tải...)
-          </p>
+          <div className="text-center mt-12">
+            <p className="text-base text-gray-700 dark:text-gray-100">Viết nhiều, nhớ lâu!</p>
+            <p className="text-gray-500 animate-pulse">
+              読み込み中... (Đang tải...)
+            </p>
+          </div>
         ) : (
           <>
             <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 py-2 mb-2">
