@@ -21,11 +21,19 @@ export function initDb() {
 
     await db.open();
 
+    // カラム追加のマイグレーション
+    try {
+      await db.execute("ALTER TABLE words ADD COLUMN note TEXT");
+    } catch (e) {
+      // 既にカラムがある場合はエラーになるので無視
+    }
+
     await db.execute(`
       CREATE TABLE IF NOT EXISTS words (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         spelling TEXT NOT NULL,
         meaning TEXT NOT NULL,
+        note TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE IF NOT EXISTS tags (
@@ -61,7 +69,7 @@ export function getDb() {
   return db;
 }
 
-export async function addWord(spelling, meaning, tagNames = [], inTransaction = false) {
+export async function addWord(spelling, meaning, tagNames = [], note = '', inTransaction = false) {
   const database = getDb();
 
   // 重複チェック（スペルのみ）
@@ -71,8 +79,8 @@ export async function addWord(spelling, meaning, tagNames = [], inTransaction = 
   }
 
   const result = await database.run(
-    'INSERT INTO words (spelling, meaning) VALUES (?, ?)',
-    [spelling, meaning],
+    'INSERT INTO words (spelling, meaning, note) VALUES (?, ?, ?)',
+    [spelling, meaning, note],
     !inTransaction
   );
   const wordId = result.changes.lastId;
@@ -83,11 +91,11 @@ export async function addWord(spelling, meaning, tagNames = [], inTransaction = 
   return wordId;
 }
 
-export async function updateWord(id, spelling, meaning, tagNames = [], inTransaction = false) {
+export async function updateWord(id, spelling, meaning, tagNames = [], note = '', inTransaction = false) {
   const database = getDb();
   await database.run(
-    'UPDATE words SET spelling = ?, meaning = ? WHERE id = ?',
-    [spelling, meaning, id],
+    'UPDATE words SET spelling = ?, meaning = ?, note = ? WHERE id = ?',
+    [spelling, meaning, note, id],
     !inTransaction
   );
   // タグは一旦全解除してから再登録（シンプルさ優先）
@@ -179,10 +187,10 @@ export async function importWordsFromCsv(rows) {
   try {
     let count = 0;
     for (const row of rows) {
-      const { spelling, meaning, tags } = row;
+      const { spelling, meaning, tags, note } = row;
       if (!spelling || !meaning) continue;
       const tagList = tags ? tags.split(/[,、]/).map((t) => t.trim()).filter(Boolean) : [];
-      const wordId = await addWord(spelling, meaning, tagList, true);
+      const wordId = await addWord(spelling, meaning, tagList, note || '', true);
       if (wordId) count++;
     }
     await database.commitTransaction();
@@ -192,6 +200,13 @@ export async function importWordsFromCsv(rows) {
     throw e;
   }
 }
+
+// --- 単語メモの更新専用 ---
+export async function updateWordNote(id, note) {
+  const database = getDb();
+  await database.run('UPDATE words SET note = ? WHERE id = ?', [note, id], true);
+}
+
 
 // --- ミニマルペア（聞き分けモード）機能 ---
 
@@ -237,9 +252,22 @@ export async function importMinimalPairsFromCsv(rows) {
 /**
  * ランダムに1つのミニマルペアセットを取得する
  */
-export async function getRandomMinimalPairSet() {
+export async function getRandomMinimalPairSet(excludeId = null) {
   const database = getDb();
-  const result = await database.query('SELECT * FROM minimal_pair_sets ORDER BY RANDOM() LIMIT 1');
+  let query = 'SELECT * FROM minimal_pair_sets';
+  let params = [];
+
+  if (excludeId !== null) {
+    const countRes = await database.query('SELECT COUNT(*) as count FROM minimal_pair_sets');
+    const count = countRes.values[0].count;
+    if (count > 1) {
+      query += ' WHERE id != ?';
+      params.push(excludeId);
+    }
+  }
+
+  query += ' ORDER BY RANDOM() LIMIT 1';
+  const result = await database.query(query, params);
   return result.values && result.values.length > 0 ? result.values[0] : null;
 }
 

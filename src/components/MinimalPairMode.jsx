@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
-import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { getRandomMinimalPairSet, getMinimalPairItems } from '../db';
+import { useTTS } from '../hooks/useTTS';
 
 const VOWELS = ['a', 'ă', 'â', 'e', 'ê', 'i', 'o', 'ô', 'ơ', 'u', 'ư'];
 
 export default function MinimalPairMode() {
+  const { speak } = useTTS();
   const [started, setStarted] = useState(false);
   const [mode, setMode] = useState('minimal'); // 'minimal' | 'vowel'
   const [currentSet, setCurrentSet] = useState(null);
@@ -14,21 +15,6 @@ export default function MinimalPairMode() {
   const [result, setResult] = useState(null); // 'correct' | 'incorrect'
   const [loading, setLoading] = useState(false);
 
-  const speak = async (text, rate = 0.9) => {
-    if (!text) return;
-    try {
-      await TextToSpeech.speak({
-        text: text,
-        lang: 'vi-VN',
-        rate: rate,
-        pitch: 1.0,
-        volume: 1.1,
-      });
-    } catch (e) {
-      console.error('TTS error:', e);
-    }
-  };
-
   const loadNext = useCallback(async (targetMode = mode) => {
     setLoading(true);
     setSelectedId(null);
@@ -37,12 +23,18 @@ export default function MinimalPairMode() {
     if (targetMode === 'vowel') {
       const vowelItems = VOWELS.map(v => ({ id: v, spelling: v, meaning: '' }));
       setItems(vowelItems);
-      const target = vowelItems[Math.floor(Math.random() * vowelItems.length)];
+
+      let candidates = vowelItems;
+      if (correctItem && vowelItems.length > 1) {
+        candidates = vowelItems.filter(v => v.id !== correctItem.id);
+      }
+
+      const target = candidates[Math.floor(Math.random() * candidates.length)];
       setCorrectItem(target);
       setCurrentSet({ id: 'vowel-set' }); // Dummy set for UI logic
       speak(target.spelling, 0.9);
     } else {
-      const set = await getRandomMinimalPairSet();
+      const set = await getRandomMinimalPairSet(currentSet?.id);
       if (set) {
         setCurrentSet(set);
         const allItems = await getMinimalPairItems(set.id);

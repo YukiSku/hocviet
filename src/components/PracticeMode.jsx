@@ -1,14 +1,16 @@
 import { useState, useMemo } from 'react';
-import { TextToSpeech } from '@capacitor-community/text-to-speech';
-import { checkAnswer } from '../db';
+import { checkAnswer, updateWordNote } from '../db';
+import { useTTS } from '../hooks/useTTS';
 
 export default function PracticeMode({ words, allTags, mode }) {
+  const { speak } = useTTS();
   const [selectedTags, setSelectedTags] = useState([]);
   const [started, setStarted] = useState(false);
   const [currentWord, setCurrentWord] = useState(null);
   const [input, setInput] = useState('');
   const [result, setResult] = useState(null);
   const [attemptCount, setAttemptCount] = useState(1);
+  const [editingNote, setEditingNote] = useState(null); // メモ編集中かどうか
 
   const filteredWords = useMemo(() => {
     if (selectedTags.length === 0) return words;
@@ -19,24 +21,18 @@ export default function PracticeMode({ words, allTags, mode }) {
 
   const handleSpeak = async (rate) => {
     if (!currentWord) return;
-    try {
-      const textToSpeak = currentWord.spelling.split(/[;；,，]/)[0].trim();
-      await TextToSpeech.speak({
-        text: textToSpeak,
-        lang: 'vi-VN',
-        rate: rate,
-        pitch: 1.0,
-        volume: 1.1,
-      });
-    } catch (e) {
-      console.error('TTS error:', e);
-      alert('音声の再生に失敗しました。ベトナム語の言語パックがインストールされているか確認してください。');
-    }
+    await speak(currentWord.spelling, rate);
   };
 
-  function pickRandom(list) {
+  function pickRandom(list, excludeId = null) {
     if (!list || list.length === 0) return null;
-    return list[Math.floor(Math.random() * list.length)];
+
+    let candidates = list;
+    if (excludeId !== null && list.length > 1) {
+      candidates = list.filter(w => w.id !== excludeId);
+    }
+
+    return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
   function handleStart() {
@@ -46,6 +42,7 @@ export default function PracticeMode({ words, allTags, mode }) {
     }
     setCurrentWord(pickRandom(filteredWords));
     setStarted(true);
+    setEditingNote(null);
   }
 
   function handleSubmit(e) {
@@ -59,13 +56,23 @@ export default function PracticeMode({ words, allTags, mode }) {
     setInput('');
     setResult(null);
     setAttemptCount((c) => c + 1);
+    setEditingNote(null);
   }
 
   function handleStopRepeat() {
-    setCurrentWord(pickRandom(filteredWords));
+    setCurrentWord(pickRandom(filteredWords, currentWord?.id));
     setInput('');
     setResult(null);
     setAttemptCount(1);
+    setEditingNote(null);
+  }
+
+  async function handleSaveNote() {
+    if (!currentWord) return;
+    await updateWordNote(currentWord.id, editingNote);
+    // ローカルの状態も更新
+    setCurrentWord({ ...currentWord, note: editingNote });
+    setEditingNote(null);
   }
 
   function toggleTag(tag) {
@@ -220,6 +227,50 @@ export default function PracticeMode({ words, allTags, mode }) {
             >
               繰り返しをやめる
             </button>
+          </div>
+
+          {/* メモ表示・編集エリア */}
+          <div className="bg-white dark:bg-gray-700/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 space-y-2 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">メモ・例文</span>
+              {editingNote === null ? (
+                <button
+                  onClick={() => setEditingNote(currentWord.note || '')}
+                  className="text-[10px] text-blue-600 dark:text-blue-400 font-bold"
+                >
+                  編集
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingNote(null)}
+                    className="text-[10px] text-gray-500 font-bold"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleSaveNote}
+                    className="text-[10px] text-green-600 font-bold"
+                  >
+                    保存
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {editingNote === null ? (
+              <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                {currentWord.note || <span className="text-gray-400 italic">メモはありません</span>}
+              </p>
+            ) : (
+              <textarea
+                value={editingNote}
+                onChange={(e) => setEditingNote(e.target.value)}
+                autoFocus
+                className="w-full text-sm bg-transparent border-none focus:ring-0 p-0 text-gray-700 dark:text-gray-200 resize-none min-h-[60px]"
+                placeholder="メモを入力してください..."
+              />
+            )}
           </div>
         </div>
       )}

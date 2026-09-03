@@ -155,7 +155,7 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
       <section>
         <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">単語のCSVインポート</h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          1列目: spelling（スペル）、2列目: meaning（意味）、3列目: tags（カンマ区切り可）
+          1列目: spelling、2列目: meaning、3列目: tags（カンマ区切り）、4列目: note（メモ/例文）
         </p>
         <button
           onClick={() => fileInputRef.current?.click()}
