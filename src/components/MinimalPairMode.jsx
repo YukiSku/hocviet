@@ -2,8 +2,11 @@ import { useState, useCallback } from 'react';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { getRandomMinimalPairSet, getMinimalPairItems } from '../db';
 
+const VOWELS = ['a', 'ă', 'â', 'e', 'ê', 'i', 'o', 'ô', 'ơ', 'u', 'ư'];
+
 export default function MinimalPairMode() {
   const [started, setStarted] = useState(false);
+  const [mode, setMode] = useState('minimal'); // 'minimal' | 'vowel'
   const [currentSet, setCurrentSet] = useState(null);
   const [items, setItems] = useState([]);
   const [correctItem, setCorrectItem] = useState(null);
@@ -26,41 +29,45 @@ export default function MinimalPairMode() {
     }
   };
 
-  const loadNextSet = useCallback(async () => {
+  const loadNext = useCallback(async (targetMode = mode) => {
     setLoading(true);
     setSelectedId(null);
     setResult(null);
 
-    const set = await getRandomMinimalPairSet();
-    if (set) {
-      setCurrentSet(set);
-      const allItems = await getMinimalPairItems(set.id);
-
-      // シャッフル
-      const shuffled = [...allItems].sort(() => Math.random() - 0.5);
-      setItems(shuffled);
-
-      // 正解をランダムに選択
-      const target = shuffled[Math.floor(Math.random() * shuffled.length)];
+    if (targetMode === 'vowel') {
+      const vowelItems = VOWELS.map(v => ({ id: v, spelling: v, meaning: '' }));
+      setItems(vowelItems);
+      const target = vowelItems[Math.floor(Math.random() * vowelItems.length)];
       setCorrectItem(target);
-
-      // 初回再生
+      setCurrentSet({ id: 'vowel-set' }); // Dummy set for UI logic
       speak(target.spelling, 0.9);
     } else {
-      setCurrentSet(null);
-      setItems([]);
-      setCorrectItem(null);
+      const set = await getRandomMinimalPairSet();
+      if (set) {
+        setCurrentSet(set);
+        const allItems = await getMinimalPairItems(set.id);
+        const shuffled = [...allItems].sort(() => Math.random() - 0.5);
+        setItems(shuffled);
+        const target = shuffled[Math.floor(Math.random() * shuffled.length)];
+        setCorrectItem(target);
+        speak(target.spelling, 0.9);
+      } else {
+        setCurrentSet(null);
+        setItems([]);
+        setCorrectItem(null);
+      }
     }
     setLoading(false);
-  }, []);
+  }, [mode]);
 
-  const handleStart = () => {
+  const handleStart = (selectedMode) => {
+    setMode(selectedMode);
     setStarted(true);
-    loadNextSet();
+    loadNext(selectedMode);
   };
 
   const handleSelect = (item) => {
-    if (result) return; // 判定済みなら何もしない
+    if (result) return;
 
     setSelectedId(item.id);
     if (item.id === correctItem.id) {
@@ -72,22 +79,39 @@ export default function MinimalPairMode() {
 
   if (!started) {
     return (
-      <div className="rounded-2xl shadow-md bg-gray-50 dark:bg-gray-800 p-8 text-center space-y-6">
+      <div className="rounded-2xl shadow-md bg-gray-50 dark:bg-gray-800 p-8 text-center space-y-8">
         <div className="space-y-2">
           <h2 className="text-xl font-bold">聞き分け練習 (Luyện nghe)</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             流れる音声を聞いて、正しい綴りを選択してください。
           </p>
         </div>
-        <div className="flex justify-center py-4">
-          <span className="text-6-xl animate-bounce">🎧</span>
+
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-gray-700 p-4 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm">
+            <h3 className="text-sm font-bold mb-3 text-gray-600 dark:text-gray-300">基礎: 母音の聞き分け</h3>
+            <button
+              onClick={() => handleStart('vowel')}
+              className="w-full rounded-lg bg-orange-500 text-white py-4 font-bold text-lg hover:bg-orange-600 active:scale-[0.98] transition shadow-md"
+            >
+              11個の母音を聞き分ける
+            </button>
+          </div>
+
+          <div className="bg-white dark:bg-gray-700 p-4 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm">
+            <h3 className="text-sm font-bold mb-3 text-gray-600 dark:text-gray-300">応用: 似た単語の聞き分け</h3>
+            <button
+              onClick={() => handleStart('minimal')}
+              className="w-full rounded-lg bg-blue-600 text-white py-4 font-bold text-lg hover:bg-blue-700 active:scale-[0.98] transition shadow-md"
+            >
+              単語で練習開始 (Bắt đầu)
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleStart}
-          className="w-full rounded-lg bg-blue-600 text-white py-4 font-bold text-lg hover:bg-blue-700 active:scale-[0.98] transition shadow-lg"
-        >
-          開始する (Bắt đầu)
-        </button>
+
+        <div className="flex justify-center pt-2">
+          <span className="text-4xl animate-bounce">🎧</span>
+        </div>
       </div>
     );
   }
@@ -99,7 +123,7 @@ export default function MinimalPairMode() {
   if (!currentSet || items.length === 0) {
     return (
       <div className="text-center py-10 bg-gray-50 dark:bg-gray-800 rounded-2xl p-6">
-        <p className="text-gray-500 dark:text-gray-400">聞き分けデータが登録されていません</p>
+        <p className="text-gray-500 dark:text-gray-400">データが登録されていません</p>
         <button
           onClick={() => setStarted(false)}
           className="text-blue-600 mt-4 underline text-sm"
@@ -114,7 +138,7 @@ export default function MinimalPairMode() {
     <div className="rounded-2xl shadow-md bg-gray-50 dark:bg-gray-800 p-6 space-y-6">
       <div className="flex justify-between items-center">
         <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 font-bold">
-          聞き分けモード (Luyện nghe)
+          {mode === 'vowel' ? '母音聞き分け (Nguyên âm)' : '単語聞き分け (Từ ngữ)'}
         </span>
         <button
           onClick={() => setStarted(false)}
@@ -127,19 +151,24 @@ export default function MinimalPairMode() {
       <div className="flex justify-center py-4">
         <button
           onClick={() => speak(correctItem.spelling, 0.9)}
-          className="w-24 h-24 rounded-full bg-blue-600 text-white shadow-lg flex flex-col items-center justify-center active:scale-90 transition transform hover:bg-blue-700"
+          className={`w-24 h-24 rounded-full text-white shadow-lg flex flex-col items-center justify-center active:scale-90 transition transform ${mode === 'vowel' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}
         >
           <span className="text-4xl">🔊</span>
           <span className="text-[10px] font-bold mt-1">REPLAY</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
+      <div className={mode === 'vowel' ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
         {items.map((item) => {
           const isCorrect = correctItem.id === item.id;
           const isSelected = selectedId === item.id;
 
-          let containerClass = "w-full py-4 px-4 rounded-xl border-2 font-medium transition-all text-lg flex justify-between items-center ";
+          let containerClass = "w-full rounded-xl border-2 font-medium transition-all flex justify-between items-center ";
+          if (mode === 'vowel') {
+            containerClass += "flex-col justify-center py-6 text-2xl ";
+          } else {
+            containerClass += "py-4 px-4 text-lg ";
+          }
 
           if (result) {
             if (isCorrect) {
@@ -152,11 +181,11 @@ export default function MinimalPairMode() {
 
             return (
               <div key={item.id} className={containerClass}>
-                <div className="flex flex-col flex-1 min-w-0">
+                <div className={mode === 'vowel' ? "text-center" : "flex flex-col flex-1 min-w-0"}>
                   <span className="truncate">{item.spelling}</span>
-                  <span className="text-xs opacity-70 font-normal truncate">{item.meaning}</span>
+                  {mode !== 'vowel' && <span className="text-xs opacity-70 font-normal truncate">{item.meaning}</span>}
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className={`flex gap-2 shrink-0 ${mode === 'vowel' ? 'mt-2' : ''}`}>
                   <button
                     onClick={() => speak(item.spelling, 0.9)}
                     className="p-2 rounded-lg bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-200 text-sm active:scale-90 transition"
@@ -185,7 +214,7 @@ export default function MinimalPairMode() {
               className={containerClass}
             >
               <span>{item.spelling}</span>
-              <span className="text-sm opacity-70 font-normal">{item.meaning}</span>
+              {mode !== 'vowel' && <span className="text-sm opacity-70 font-normal">{item.meaning}</span>}
             </button>
           );
         })}
@@ -204,10 +233,10 @@ export default function MinimalPairMode() {
               もう一度聞く
             </button>
             <button
-              onClick={loadNextSet}
-              className="flex-1 rounded-lg bg-blue-600 text-white py-3 font-medium hover:bg-blue-700 active:scale-[0.98] transition"
+              onClick={() => loadNext()}
+              className={`flex-1 rounded-lg text-white py-3 font-medium active:scale-[0.98] transition ${mode === 'vowel' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
-              次のセットへ
+              {mode === 'vowel' ? '次の母音へ' : '次のセットへ'}
             </button>
           </div>
         </div>
