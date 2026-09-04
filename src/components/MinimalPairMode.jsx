@@ -232,7 +232,7 @@ export default function MinimalPairMode() {
       {result && (
         <div className="pt-4 space-y-3">
           <p className={`text-center font-bold text-xl ${result === 'correct' ? 'text-green-600' : 'text-red-600'}`}>
-            {result === 'correct' ? '正解！ (Chính xác!)' : '不正解 (Sai rồi)'}
+            {result === 'correct' ? '正解！ (Chính xác!) 🎉' : '不正解 (Sai rồi) 😢'}
           </p>
           <div className="flex gap-3">
             <button

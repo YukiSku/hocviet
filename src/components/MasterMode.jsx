@@ -119,7 +119,7 @@ export default function MasterMode() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
+                className="absolute right-3 top-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 px-1"
               >
                 ✕
               </button>

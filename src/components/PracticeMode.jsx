@@ -153,7 +153,17 @@ export default function PracticeMode({ words, allTags, mode }) {
         <h2 className="text-lg font-bold mb-2 text-center">練習設定</h2>
 
         <div>
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">ジャンルを選択</h3>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">ジャンルを選択</h3>
+            {selectedTags.length > 0 && (
+              <button
+                onClick={() => setSelectedTags([])}
+                className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider underline underline-offset-2"
+              >
+                選択をクリア
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             {allTags.map(tag => (
               <button
@@ -308,7 +318,7 @@ export default function PracticeMode({ words, allTags, mode }) {
         <div className="mt-4 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="text-center space-y-4">
             <p className={`font-black text-2xl ${result === 'correct' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-              {result === 'correct' ? 'CHÍNH XÁC! 🎉' : 'SAI RỒI! 😢'}
+              {result === 'correct' ? '正解（Chính xác!） 🎉' : '不正解（Sai rồi） 😢'}
             </p>
 
             {practiceType === 'input' && (
