@@ -107,7 +107,7 @@ export default function MinimalPairMode() {
               onClick={() => handleStart('vowel')}
               className="w-full rounded-lg bg-orange-500 text-white py-4 font-bold text-lg hover:bg-orange-600 active:scale-[0.98] transition shadow-md"
             >
-              11個の母音を聞き分ける
+              母音の聞き分け
             </button>
           </div>
 
@@ -196,11 +196,10 @@ export default function MinimalPairMode() {
           }
 
           return (
-            <button
+            <div
               key={item.id}
-              onClick={() => handleSelect(item)}
-              disabled={!!result}
-              className={containerClass}
+              onClick={() => !result && handleSelect(item)}
+              className={`${containerClass} ${!result ? 'cursor-pointer' : ''}`}
             >
               <div className={mode === 'vowel' ? "text-center" : "flex flex-col flex-1 min-w-0 text-left"}>
                 <span className="truncate">{item.spelling}</span>
@@ -211,21 +210,21 @@ export default function MinimalPairMode() {
                 <div className={`flex gap-2 shrink-0 ${mode === 'vowel' ? 'mt-2' : ''}`}>
                   <button
                     onClick={(e) => { e.stopPropagation(); speak(item.spelling, 0.9); }}
-                    className="p-2 rounded-lg bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-200 text-sm active:scale-90 transition"
+                    className="p-2 rounded-lg bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-200 text-sm active:scale-95 transition-all shadow-sm"
                     title="通常"
                   >
                     🔊
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); speak(item.spelling, 0.6); }}
-                    className="p-2 rounded-lg bg-orange-100 dark:bg-orange-800 text-orange-600 dark:text-orange-200 text-sm active:scale-90 transition"
+                    className="p-2 rounded-lg bg-orange-100 dark:bg-orange-800 text-orange-600 dark:text-orange-200 text-sm active:scale-95 transition-all shadow-sm"
                     title="ゆっくり"
                   >
                     🐢
                   </button>
                 </div>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

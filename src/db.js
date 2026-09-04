@@ -186,11 +186,21 @@ export async function importMinimalPairsFromCsv(rows) {
   const database = getDb();
   await database.beginTransaction();
   try {
-    const setsMap = new Map();
+    // 既存の全アイテムをチェック用に取得
+    const existingResult = await database.query('SELECT spelling, set_id FROM minimal_pair_items');
+    const existingItems = existingResult.values ?? [];
+
+    const setsMap = new Map(); // CSVのset_id -> データベースのsetId
     let count = 0;
+
     for (const row of rows) {
       const { set_id, spelling, meaning } = row;
       if (!set_id || !spelling || !meaning) continue;
+
+      // すでに同じ綴りがデータベースに存在するかチェック
+      const isDuplicate = existingItems.some(item => item.spelling === spelling);
+      if (isDuplicate) continue;
+
       let dbSetId;
       if (setsMap.has(set_id)) {
         dbSetId = setsMap.get(set_id);

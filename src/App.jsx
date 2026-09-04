@@ -61,7 +61,7 @@ function App() {
           </div>
         ) : !dbReady ? (
           <div className="text-center mt-12">
-            <p className="text-base text-gray-700 dark:text-gray-100">Viết nhiều, nhớ lâu!</p>
+            <p className="text-xl font-bold italic text-gray-700 dark:text-gray-100">Viết nhiều, nhớ lâu!</p>
             <p className="text-gray-500 animate-pulse">
               読み込み中... (Đang tải...)
             </p>
