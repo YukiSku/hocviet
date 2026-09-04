@@ -4,6 +4,18 @@ import { useTTS } from '../hooks/useTTS';
 
 const VOWELS = ['a', 'ă', 'â', 'e', 'ê', 'i', 'o', 'ô', 'ơ', 'u', 'ư'];
 
+/**
+ * フィッシャー–イェーツのシャッフル
+ */
+function shuffleArray(array) {
+  const cloned = [...array];
+  for (let i = cloned.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cloned[i], cloned[j]] = [cloned[j], cloned[i]];
+  }
+  return cloned;
+}
+
 export default function MinimalPairMode() {
   const { speak } = useTTS();
   const [started, setStarted] = useState(false);
@@ -20,37 +32,45 @@ export default function MinimalPairMode() {
     setSelectedId(null);
     setResult(null);
 
-    if (targetMode === 'vowel') {
-      const vowelItems = VOWELS.map(v => ({ id: v, spelling: v, meaning: '' }));
-      setItems(vowelItems);
+    try {
+      if (targetMode === 'vowel') {
+        const vowelItems = VOWELS.map(v => ({ id: v, spelling: v, meaning: '' }));
 
-      let candidates = vowelItems;
-      if (correctItem && vowelItems.length > 1) {
-        candidates = vowelItems.filter(v => v.id !== correctItem.id);
-      }
+        // 直前と同じ問題にならないようにフィルター
+        let candidates = vowelItems;
+        if (correctItem && vowelItems.length > 1) {
+          candidates = vowelItems.filter(v => String(v.id) !== String(correctItem.id));
+        }
 
-      const target = candidates[Math.floor(Math.random() * candidates.length)];
-      setCorrectItem(target);
-      setCurrentSet({ id: 'vowel-set' }); // Dummy set for UI logic
-      speak(target.spelling, 0.9);
-    } else {
-      const set = await getRandomMinimalPairSet(currentSet?.id);
-      if (set) {
-        setCurrentSet(set);
-        const allItems = await getMinimalPairItems(set.id);
-        const shuffled = [...allItems].sort(() => Math.random() - 0.5);
-        setItems(shuffled);
-        const target = shuffled[Math.floor(Math.random() * shuffled.length)];
+        const target = candidates[Math.floor(Math.random() * candidates.length)];
+        setItems(vowelItems);
         setCorrectItem(target);
+        setCurrentSet({ id: 'vowel-set' });
         speak(target.spelling, 0.9);
       } else {
-        setCurrentSet(null);
-        setItems([]);
-        setCorrectItem(null);
+        const set = await getRandomMinimalPairSet(currentSet?.id);
+        if (set) {
+          setCurrentSet(set);
+          const allItems = await getMinimalPairItems(set.id);
+          const shuffled = shuffleArray(allItems);
+
+          setItems(shuffled);
+          const target = shuffled[Math.floor(Math.random() * shuffled.length)];
+          setCorrectItem(target);
+          speak(target.spelling, 0.9);
+        } else {
+          setCurrentSet(null);
+          setItems([]);
+          setCorrectItem(null);
+        }
       }
+    } catch (e) {
+      console.error('Failed to load next exercise:', e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, currentSet?.id, correctItem?.id, speak]);
 
   const handleStart = (selectedMode) => {
     setMode(selectedMode);
@@ -59,10 +79,11 @@ export default function MinimalPairMode() {
   };
 
   const handleSelect = (item) => {
-    if (result) return;
+    if (result || !correctItem) return;
 
     setSelectedId(item.id);
-    if (item.id === correctItem.id) {
+    // 型の違いを考慮して == で比較
+    if (String(item.id) === String(correctItem.id)) {
       setResult('correct');
     } else {
       setResult('incorrect');
@@ -112,7 +133,7 @@ export default function MinimalPairMode() {
     return <p className="text-center py-10 text-gray-500 animate-pulse">読み込み中... (Đang tải...)</p>;
   }
 
-  if (!currentSet || items.length === 0) {
+  if (!currentSet || items.length === 0 || !correctItem) {
     return (
       <div className="text-center py-10 bg-gray-50 dark:bg-gray-800 rounded-2xl p-6">
         <p className="text-gray-500 dark:text-gray-400">データが登録されていません</p>
@@ -152,8 +173,8 @@ export default function MinimalPairMode() {
 
       <div className={mode === 'vowel' ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
         {items.map((item) => {
-          const isCorrect = correctItem.id === item.id;
-          const isSelected = selectedId === item.id;
+          const isCorrect = String(correctItem.id) === String(item.id);
+          const isSelected = String(selectedId) === String(item.id);
 
           let containerClass = "w-full rounded-xl border-2 font-medium transition-all flex justify-between items-center ";
           if (mode === 'vowel') {
@@ -170,43 +191,40 @@ export default function MinimalPairMode() {
             } else {
               containerClass += "bg-white border-gray-200 text-gray-400 dark:bg-gray-700 dark:border-gray-600 opacity-50 ";
             }
+          } else {
+            containerClass += "bg-white border-gray-200 text-gray-700 hover:border-blue-400 active:scale-[0.98] dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 ";
+          }
 
-            return (
-              <div key={item.id} className={containerClass}>
-                <div className={mode === 'vowel' ? "text-center" : "flex flex-col flex-1 min-w-0"}>
-                  <span className="truncate">{item.spelling}</span>
-                  {mode !== 'vowel' && <span className="text-xs opacity-70 font-normal truncate">{item.meaning}</span>}
-                </div>
+          return (
+            <button
+              key={item.id}
+              onClick={() => handleSelect(item)}
+              disabled={!!result}
+              className={containerClass}
+            >
+              <div className={mode === 'vowel' ? "text-center" : "flex flex-col flex-1 min-w-0 text-left"}>
+                <span className="truncate">{item.spelling}</span>
+                {mode !== 'vowel' && <span className="text-xs opacity-70 font-normal truncate">{item.meaning}</span>}
+              </div>
+
+              {result && (
                 <div className={`flex gap-2 shrink-0 ${mode === 'vowel' ? 'mt-2' : ''}`}>
                   <button
-                    onClick={() => speak(item.spelling, 0.9)}
+                    onClick={(e) => { e.stopPropagation(); speak(item.spelling, 0.9); }}
                     className="p-2 rounded-lg bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-200 text-sm active:scale-90 transition"
                     title="通常"
                   >
                     🔊
                   </button>
                   <button
-                    onClick={() => speak(item.spelling, 0.6)}
+                    onClick={(e) => { e.stopPropagation(); speak(item.spelling, 0.6); }}
                     className="p-2 rounded-lg bg-orange-100 dark:bg-orange-800 text-orange-600 dark:text-orange-200 text-sm active:scale-90 transition"
                     title="ゆっくり"
                   >
                     🐢
                   </button>
                 </div>
-              </div>
-            );
-          }
-
-          containerClass += "bg-white border-gray-200 text-gray-700 hover:border-blue-400 active:scale-[0.98] dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 ";
-
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleSelect(item)}
-              className={containerClass}
-            >
-              <span>{item.spelling}</span>
-              {mode !== 'vowel' && <span className="text-sm opacity-70 font-normal">{item.meaning}</span>}
+              )}
             </button>
           );
         })}

@@ -153,6 +153,44 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
       </section>
 
       <section>
+        <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">サンプルデータの読み込み</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          アプリに最初から用意されている基本単語リストを読み込みます。既存の単語は重複登録されません。
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const { loadSampleVocabulary } = await import('../initialData');
+                const count = await loadSampleVocabulary();
+                alert(`${count}件の新規単語を追加しました。`);
+                onImportDone?.();
+              } catch (e) {
+                alert('読み込みに失敗しました。');
+              }
+            }}
+            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 py-3 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+          >
+            基本単語を読み込む
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                const { loadSampleMinimalPairs } = await import('../initialData');
+                const count = await loadSampleMinimalPairs();
+                alert(`${count}件の聞き分けセットを追加しました。`);
+              } catch (e) {
+                alert('読み込みに失敗しました。');
+              }
+            }}
+            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 py-3 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+          >
+            聞き分けセットを読み込む
+          </button>
+        </div>
+      </section>
+
+      <section>
         <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">単語のCSVインポート</h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
           1列目: spelling、2列目: meaning、3列目: tags（カンマ区切り）、4列目: note（メモ/例文）
@@ -253,15 +291,32 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
           <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
             <p className="font-bold">サードパーティ・ライセンス</p>
             <p>本アプリは以下のオープンソースソフトウェアを使用しています。</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>React: Copyright © Meta Platforms, Inc.</li>
-              <li>Capacitor: Copyright © Ionic</li>
-              <li>capacitor-native-settings: Copyright © Robin Genz</li>
-              <li>@capacitor-community/sqlite: Copyright © Capacitor Community</li>
-              <li>@capacitor-community/text-to-speech: Copyright © Capacitor Community</li>
-              <li>Tailwind CSS: Copyright © Tailwind Labs, Inc.</li>
-              <li>Vite: Copyright © Evan You and Vite contributors</li>
-            </ul>
+
+            <div className="space-y-1">
+              <p className="font-semibold">[MIT License]</p>
+              <ul className="list-disc list-inside space-y-0.5 ml-1">
+                <li>React: Copyright © Meta Platforms, Inc.</li>
+                <li>Capacitor: Copyright © Ionic</li>
+                <li>capacitor-native-settings: Copyright © Robin Genz</li>
+                <li>@capacitor-community/sqlite: Copyright © Capacitor Community</li>
+                <li>@capacitor-community/text-to-speech: Copyright © Capacitor Community</li>
+                <li>Tailwind CSS: Copyright © Tailwind Labs, Inc.</li>
+                <li>Vite: Copyright © Evan You and Vite contributors</li>
+              </ul>
+            </div>
+
+            <div className="space-y-1 pt-1">
+              <p className="font-semibold">[Apache License 2.0]</p>
+              <ul className="list-disc list-inside space-y-0.5 ml-1">
+                <li>AndroidX Libraries: Copyright © The Android Open Source Project</li>
+                <li>Google Play Services: Copyright © Google LLC</li>
+              </ul>
+              <p className="mt-1 opacity-80">
+                Licensed under the Apache License, Version 2.0 (the "License");
+                you may not use this file except in compliance with the License.
+                You may obtain a copy of the License at: http://www.apache.org/licenses/LICENSE-2.0
+              </p>
+            </div>
           </div>
         </div>
       </section>

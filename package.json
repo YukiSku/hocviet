@@ -1,7 +1,7 @@
 {
   "name": "hocviet",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,13 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@capacitor-community/sqlite": "^8.1.1",
-    "@capacitor-community/text-to-speech": "^8.0.2",
-    "@capacitor/android": "^8.5.0",
-    "@capacitor/cli": "^8.4.2",
-    "@capacitor/core": "^8.5.0",
-    "@capacitor/preferences": "^8.0.1",
-    "capacitor-native-settings": "^8.2.0",
+    "@capacitor-community/sqlite": "6.0.2",
+    "@capacitor-community/text-to-speech": "5.1.0",
+    "@capacitor/android": "6.2.0",
+    "@capacitor/cli": "6.2.0",
+    "@capacitor/core": "6.2.0",
+    "@capacitor/preferences": "6.0.2",
+    "capacitor-native-settings": "6.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -27,10 +27,11 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
+    "sharp": "^0.33.5",
     "tailwindcss": "^4.3.3",
     "vite": "^8.2.2"
   },
   "allowScripts": {
-    "sharp@0.32.6": true
+    "sharp": true
   }
 }

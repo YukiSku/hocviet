@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">hocviet</string>
-    <string name="title_activity_main">hocviet</string>
-    <string name="package_name">com.ysapp.hocviet</string>
-    <string name="custom_url_scheme">com.ysapp.hocviet</string>
-</resources>

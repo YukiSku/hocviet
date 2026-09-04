@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { checkAnswer, updateWordNote } from '../db';
 import { useTTS } from '../hooks/useTTS';
 
@@ -11,6 +11,18 @@ export default function PracticeMode({ words, allTags, mode }) {
   const [result, setResult] = useState(null);
   const [attemptCount, setAttemptCount] = useState(1);
   const [editingNote, setEditingNote] = useState(null); // メモ編集中かどうか
+  const inputRef = useRef(null);
+
+  // 回答待ち状態（resultがnull）になったら自動でフォーカスを当てる
+  useEffect(() => {
+    if (started && result === null) {
+      // 画面更新のタイミングにより、setTimeoutで少し遅延させるとより確実にフォーカスが当たる
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [started, result, currentWord]);
 
   const filteredWords = useMemo(() => {
     if (selectedTags.length === 0) return words;
@@ -154,6 +166,7 @@ export default function PracticeMode({ words, allTags, mode }) {
 
       <form onSubmit={handleSubmit}>
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={result !== null}
