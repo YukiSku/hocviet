@@ -244,6 +244,80 @@ export async function getMinimalPairItems(setId) {
   return result.values ?? [];
 }
 
+/**
+ * 全てのミニマルペアセットをアイテム付きで取得する
+ */
+export async function getAllMinimalPairSets() {
+  if (!db) await initDb();
+  const database = getDb();
+  const setsResult = await database.query('SELECT * FROM minimal_pair_sets ORDER BY id DESC');
+  const sets = setsResult.values ?? [];
+
+  for (const set of sets) {
+    set.items = await getMinimalPairItems(set.id);
+  }
+  return sets;
+}
+
+/**
+ * ミニマルペアセットを新規登録する
+ */
+export async function addMinimalPairSet(items) {
+  if (!db) await initDb();
+  const database = getDb();
+  await database.beginTransaction();
+  try {
+    const res = await database.run('INSERT INTO minimal_pair_sets DEFAULT VALUES');
+    const setId = res.changes.lastId;
+
+    for (const item of items) {
+      await database.run(
+        'INSERT INTO minimal_pair_items (set_id, spelling, meaning) VALUES (?, ?, ?)',
+        [setId, item.spelling, item.meaning]
+      );
+    }
+    await database.commitTransaction();
+    return setId;
+  } catch (e) {
+    await database.rollbackTransaction();
+    throw e;
+  }
+}
+
+/**
+ * ミニマルペアセットを更新する
+ */
+export async function updateMinimalPairSet(setId, items) {
+  if (!db) await initDb();
+  const database = getDb();
+  await database.beginTransaction();
+  try {
+    // 既存のアイテムを削除して再登録
+    await database.run('DELETE FROM minimal_pair_items WHERE set_id = ?', [setId]);
+
+    for (const item of items) {
+      await database.run(
+        'INSERT INTO minimal_pair_items (set_id, spelling, meaning) VALUES (?, ?, ?)',
+        [setId, item.spelling, item.meaning]
+      );
+    }
+    await database.commitTransaction();
+  } catch (e) {
+    await database.rollbackTransaction();
+    throw e;
+  }
+}
+
+/**
+ * ミニマルペアセットを削除する
+ */
+export async function deleteMinimalPairSet(setId) {
+  if (!db) await initDb();
+  const database = getDb();
+  // ON DELETE CASCADE なので親を消せば子も消える
+  await database.run('DELETE FROM minimal_pair_sets WHERE id = ?', [setId]);
+}
+
 export function stripToneMarks(str) {
   if (!str) return '';
   return str.normalize('NFD').replace(/[\u0300\u0301\u0303\u0309\u0323]/g, '').normalize('NFC');

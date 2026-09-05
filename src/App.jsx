@@ -68,7 +68,7 @@ function App() {
           </div>
         ) : (
           <>
-            <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 py-2 mb-2">
+            <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 py-2">
               <div className="flex gap-2">
                 <button
                   onClick={() => setTab('practice')}
@@ -86,7 +86,7 @@ function App() {
                   onClick={() => setTab('master')}
                   className={`flex-1 py-2 rounded-lg font-medium text-xs ${tab === 'master' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
                 >
-                  単語管理
+                  マスタ管理
                 </button>
                 <button
                   onClick={() => setTab('settings')}

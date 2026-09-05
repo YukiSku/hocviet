@@ -169,10 +169,10 @@ export default function PracticeMode({ words, allTags, mode }) {
               <button
                 key={tag}
                 onClick={() => toggleTag(tag)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
                   selectedTags.includes(tag)
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
                 }`}
               >
                 {tag}
