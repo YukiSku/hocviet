@@ -278,7 +278,7 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
         <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">ライセンス情報</h2>
         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 text-[10px] text-gray-400 dark:text-gray-500 space-y-4 leading-relaxed">
           <div className="space-y-1">
-            <p>Copyright © 2026 Yuuki Sakano (@yukisku) All Rights Reserved.</p>
+            <p className="text-gray-500 dark:text-gray-400">Copyright © 2026 Yuuki Sakano (@yukisku) All Rights Reserved.</p>
             <p className="whitespace-pre-wrap">
               本ソフトウェアおよび関連する文書のファイル（以下「ソフトウェア」）の複製を取得した全ての人物に対し、以下の条件に従うことを前提に、ソフトウェアを無制限に扱うことを無償で許可します。これには、ソフトウェアの複製を使用、複製、改変、結合、公開、頒布、再許諾、および/または販売する権利、およびソフトウェアを提供する人物に同様の行為を許可する権利が含まれますが、これらに限定されません。
               {"\n\n"}
@@ -289,7 +289,7 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
           </div>
 
           <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
-            <p className="font-bold">サードパーティ・ライセンス</p>
+            <p className="font-bold text-gray-500 dark:text-gray-400">サードパーティ・ライセンス</p>
             <p>本アプリは以下のオープンソースソフトウェアを使用しています。</p>
 
             <div className="space-y-1">

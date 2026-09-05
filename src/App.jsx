@@ -14,17 +14,27 @@ function App() {
   const [allTags, setAllTags] = useState([]);
   const [theme, setThemeState] = useState('system');
   const [initError, setInitError] = useState(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   useEffect(() => {
     (async () => {
       try {
+        setLoadingProgress(10);
         await initDb();
+        setLoadingProgress(30);
         await loadInitialDataIfFirstTime();
-        setWords(await getAllWords());
-        setAllTags(await getAllTags());
+        setLoadingProgress(60);
+        const w = await getAllWords();
+        setWords(w);
+        setLoadingProgress(80);
+        const t = await getAllTags();
+        setAllTags(t);
         const savedTheme = await getTheme();
         setThemeState(savedTheme);
-        setDbReady(true);
+        setLoadingProgress(100);
+
+        // 完了後、少しだけ待ってから画面を切り替える
+        setTimeout(() => setDbReady(true), 300);
       } catch (err) {
         console.error('DB init failed:', err);
         setInitError(err.message ?? String(err));
@@ -60,11 +70,23 @@ function App() {
             <p className="text-xs mt-2">{initError}</p>
           </div>
         ) : !dbReady ? (
-          <div className="text-center mt-12">
-            <p className="text-xl font-bold italic text-gray-700 dark:text-gray-100">Viết nhiều, nhớ lâu!</p>
-            <p className="text-gray-500 animate-pulse">
-              読み込み中... (Đang tải...)
-            </p>
+          <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in duration-700">
+            <div className="text-center space-y-2">
+              <p className="text-3xl font-black italic text-blue-600 dark:text-blue-400 tracking-tighter">Học Viết</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Viết nhiều, nhớ lâu!</p>
+            </div>
+
+            <div className="w-full max-w-[240px] space-y-3">
+              <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all duration-500 ease-out rounded-full shadow-[0_0_8px_rgba(37,99,235,0.4)]"
+                  style={{ width: `${loadingProgress}%` }}
+                />
+              </div>
+              <p className="text-[10px] font-bold text-center text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                {loadingProgress < 100 ? `Đang tải... ${loadingProgress}%` : 'Hoàn thành!'}
+              </p>
+            </div>
           </div>
         ) : (
           <>
