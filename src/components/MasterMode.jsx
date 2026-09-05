@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   addWord, updateWord, deleteWord, getAllWords,
-  getAllMinimalPairSets, addMinimalPairSet, updateMinimalPairSet, deleteMinimalPairSet
+  getAllMinimalPairSets, addMinimalPairSet, updateMinimalPairSet, deleteMinimalPairSet,
+  getWordsPaginated, getAllTags
 } from '../db';
 import { useTTS } from '../hooks/useTTS';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInView } from 'react-intersection-observer';
 
 export default function MasterMode() {
   const [subTab, setSubTab] = useState('wordList'); // 'wordList' | 'minimalPair'
@@ -47,8 +50,7 @@ export default function MasterMode() {
 
 function WordListManager() {
   const { speak } = useTTS();
-  const [words, setWords] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [spelling, setSpelling] = useState('');
   const [meaning, setMeaning] = useState('');
   const [note, setNote] = useState('');
@@ -59,34 +61,56 @@ function WordListManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTag, setFilterTag] = useState(null);
 
-  async function refresh() {
-    setIsLoading(true);
-    setWords(await getAllWords());
-    setIsLoading(false);
-  }
+  const { ref, inView } = useInView();
 
-  useEffect(() => { refresh(); }, []);
+  // 無限スクロール用のクエリ
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading
+  } = useInfiniteQuery({
+    queryKey: ['words', searchQuery, filterTag],
+    queryFn: ({ pageParam = 0 }) => getWordsPaginated({
+      limit: 20,
+      offset: pageParam,
+      searchQuery,
+      filterTag
+    }),
+    getNextPageParam: (lastPage, allPages) => {
+      return lastPage.length === 20 ? allPages.length * 20 : undefined;
+    },
+    initialPageParam: 0,
+  });
 
-  const allTags = useMemo(() => {
-    const tags = new Set();
-    words.forEach(w => w.tags.forEach(t => tags.add(t)));
-    return Array.from(tags).sort();
-  }, [words]);
+  // 全タグ取得用
+  const [allTags, setAllTags] = useState([]);
+  useEffect(() => {
+    getAllTags().then(setAllTags);
+  }, []);
 
-  const filteredWords = useMemo(() => {
-    return words.filter(word => {
-      const matchesSearch =
-        word.spelling.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        word.meaning.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (word.note && word.note.toLowerCase().includes(searchQuery.toLowerCase()));
-      const matchesTag = !filterTag || word.tags.includes(filterTag);
-      return matchesSearch && matchesTag;
-    });
-  }, [words, searchQuery, filterTag]);
+  // 画面最下部に到達したら次を読み込む
+  useEffect(() => {
+    if (inView && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // すべてのページから単語をフラットに並べる
+  const words = useMemo(() => {
+    return data?.pages.flat() ?? [];
+  }, [data]);
 
   function resetForm() {
     setSpelling(''); setMeaning(''); setNote(''); setTagsInput('');
     setEditingId(null); setIsModalOpen(false);
+  }
+
+  async function refresh() {
+    await queryClient.invalidateQueries({ queryKey: ['words'] });
+    const t = await getAllTags();
+    setAllTags(t);
   }
 
   async function handleSubmit(e) {
@@ -143,7 +167,7 @@ function WordListManager() {
               <button onClick={() => setSearchQuery('')} className="absolute right-3 top-2 text-gray-400 px-1">✕</button>
             )}
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar text-left">
             <button
               onClick={() => setFilterTag(null)}
               className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap border transition-all ${
@@ -191,47 +215,48 @@ function WordListManager() {
               </p>
             </div>
           </div>
-        ) : filteredWords.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-gray-500 dark:text-gray-400">該当する単語が見つかりません</p>
-            {(searchQuery || filterTag) && (
-              <button
-                onClick={() => { setSearchQuery(''); setFilterTag(null); }}
-                className="text-sm text-blue-600 mt-2 underline"
-              >
-                検索条件をクリア
-              </button>
-            )}
-          </div>
         ) : (
-          filteredWords.map((word) => (
-            <div key={word.id} className="rounded-xl bg-gray-50 dark:bg-gray-800 p-4 border border-gray-100 dark:border-gray-700 transition relative">
-              <div className="flex justify-between items-start mb-1">
-                <div className="min-w-0 pr-4 flex-1">
-                  <p className="text-lg font-bold truncate leading-tight mb-0.5">{word.spelling}</p>
-                  <p className="text-blue-600 dark:text-blue-400 font-medium">{word.meaning}</p>
+          <>
+            {words.map((word) => (
+              <div key={word.id} className="rounded-xl bg-gray-50 dark:bg-gray-800 p-4 border border-gray-100 dark:border-gray-700 transition relative">
+                <div className="flex justify-between items-start mb-1 text-left">
+                  <div className="min-w-0 pr-4 flex-1">
+                    <p className="text-lg font-bold truncate leading-tight mb-0.5">{word.spelling}</p>
+                    <p className="text-blue-600 dark:text-blue-400 font-medium">{word.meaning}</p>
+                  </div>
+                  <div className="flex gap-4 shrink-0 mt-1">
+                    <button onClick={() => handleEdit(word)} className="text-xs text-blue-600 dark:text-blue-400 font-bold uppercase">編集</button>
+                    <button onClick={() => handleDelete(word.id)} className="text-xs text-red-600 dark:text-red-400 font-bold uppercase">削除</button>
+                  </div>
                 </div>
-                <div className="flex gap-4 shrink-0 mt-1">
-                  <button onClick={() => handleEdit(word)} className="text-xs text-blue-600 dark:text-blue-400 font-bold uppercase">編集</button>
-                  <button onClick={() => handleDelete(word.id)} className="text-xs text-red-600 dark:text-red-400 font-bold uppercase">削除</button>
+                {word.note && <p className="text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-700/50 p-2 rounded-lg mt-2 italic text-left line-clamp-2">{word.note}</p>}
+                <div className="flex justify-between items-end mt-3 gap-2">
+                  <div className="flex gap-1 flex-wrap min-w-0">
+                    {word.tags.map(tag => <span key={tag} className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full px-2 py-0.5 border border-blue-100 dark:border-blue-800">{tag}</span>)}
+                  </div>
+                  <button onClick={() => speak(word.spelling, 0.9)} className="p-2.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 active:scale-90 shadow-sm shrink-0"><span className="text-base">🔊</span></button>
                 </div>
               </div>
-              {word.note && <p className="text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-700/50 p-2 rounded-lg mt-2 italic line-clamp-2">{word.note}</p>}
-              <div className="flex justify-between items-end mt-3 gap-2">
-                <div className="flex gap-1 flex-wrap min-w-0">
-                  {word.tags.map(tag => <span key={tag} className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full px-2 py-0.5 border border-blue-100 dark:border-blue-800">{tag}</span>)}
-                </div>
-                <button onClick={() => speak(word.spelling, 0.9)} className="p-2.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 active:scale-90 shadow-sm shrink-0"><span className="text-base">🔊</span></button>
-              </div>
+            ))}
+
+            {/* 無限スクロールのトリガー */}
+            <div ref={ref} className="py-8 flex justify-center">
+              {isFetchingNextPage ? (
+                <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+              ) : hasNextPage ? (
+                <p className="text-xs text-gray-400 uppercase tracking-widest">さらに読み込む...</p>
+              ) : (
+                <p className="text-xs text-gray-400 uppercase tracking-widest">すべての単語を表示しました</p>
+              )}
             </div>
-          ))
+          </>
         )}
       </div>
 
       {/* モーダル */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50">
               <h3 className="font-bold text-gray-700 dark:text-gray-200">{editingId ? '単語を編集' : '単語を新規登録'}</h3>
               <button onClick={resetForm} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full">✕</button>
@@ -253,7 +278,7 @@ function WordListManager() {
                 <label className="text-xs font-bold text-gray-500 uppercase ml-1">メモ・例文</label>
                 <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="補足情報や例文" rows={4} className="w-full rounded-lg border px-3 py-2.5 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
               </div>
-              <div className="pt-2 flex gap-3">
+              <div className="pt-2 flex gap-3 text-center">
                 <button type="button" onClick={resetForm} className="flex-1 py-3 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition">キャンセル</button>
                 <button type="submit" className="flex-1 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition shadow-md">{editingId ? '更新する' : '登録する'}</button>
               </div>
@@ -274,7 +299,6 @@ function MinimalPairManager() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSetId, setEditingSetId] = useState(null);
 
-  // 入力フォーム用ステート（セット内のアイテムリスト）
   const [formItems, setFormItems] = useState([
     { spelling: '', meaning: '' },
     { spelling: '', meaning: '' }
@@ -341,7 +365,6 @@ function MinimalPairManager() {
 
   return (
     <div className="space-y-4">
-      {/* 追加ボタンエリア */}
       <div className="sticky top-[108px] z-10 bg-white dark:bg-gray-900 pt-1 shadow-sm pb-4">
         <button
           onClick={() => setIsModalOpen(true)}
@@ -351,7 +374,6 @@ function MinimalPairManager() {
         </button>
       </div>
 
-      {/* リスト */}
       <div className="space-y-3 pb-10">
         {isLoading ? (
           <div className="text-center py-20">
@@ -373,7 +395,7 @@ function MinimalPairManager() {
           </div>
         ) : (
           sets.map((set) => (
-            <div key={set.id} className="rounded-xl bg-white dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 shadow-sm relative group">
+            <div key={set.id} className="rounded-xl bg-white dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 shadow-sm relative group text-left">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">Set #{set.id}</span>
                 <div className="flex gap-4">
@@ -390,7 +412,7 @@ function MinimalPairManager() {
                       <span className="mx-2 text-gray-400">/</span>
                       <span className="text-sm text-gray-500 dark:text-gray-400">{item.meaning}</span>
                     </div>
-                    <button onClick={() => speak(item.spelling, 0.9)} className="p-1.5 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 transition active:scale-90">🔊</button>
+                    <button onClick={() => speak(item.spelling, 0.9)} className="p-1.5 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 transition active:scale-90"><span className="text-sm">🔊</span></button>
                   </div>
                 ))}
               </div>
@@ -410,7 +432,6 @@ function MinimalPairManager() {
 
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
               <p className="text-xs text-gray-500">似た発音の単語を2つ以上登録してください。</p>
-
               <div className="space-y-4">
                 {formItems.map((item, index) => (
                   <div key={index} className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 space-y-3 relative">
@@ -421,36 +442,18 @@ function MinimalPairManager() {
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <input
-                        value={item.spelling}
-                        onChange={(e) => updateItem(index, 'spelling', e.target.value)}
-                        placeholder="綴り"
-                        className="w-full rounded-lg border px-3 py-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                      <input
-                        value={item.meaning}
-                        onChange={(e) => updateItem(index, 'meaning', e.target.value)}
-                        placeholder="意味"
-                        className="w-full rounded-lg border px-3 py-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
+                      <input value={item.spelling} onChange={(e) => updateItem(index, 'spelling', e.target.value)} placeholder="綴り" className="w-full rounded-lg border px-3 py-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <input value={item.meaning} onChange={(e) => updateItem(index, 'meaning', e.target.value)} placeholder="意味" className="w-full rounded-lg border px-3 py-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
                     </div>
                   </div>
                 ))}
               </div>
-
-              <button
-                onClick={addItem}
-                className="w-full py-2 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl text-gray-500 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-              >
-                + 単語を追加
-              </button>
+              <button onClick={addItem} className="w-full py-2 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl text-gray-500 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition">+ 単語を追加</button>
             </div>
 
-            <div className="p-6 border-t border-gray-100 dark:border-gray-700 flex gap-3 bg-gray-50 dark:bg-gray-800/50 shrink-0">
+            <div className="p-6 border-t border-gray-100 dark:border-gray-700 flex gap-3 bg-gray-50 dark:bg-gray-800/50 shrink-0 text-center">
               <button type="button" onClick={resetForm} className="flex-1 py-3 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-white dark:hover:bg-gray-700 transition">キャンセル</button>
-              <button onClick={handleSubmit} className="flex-1 py-3 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition shadow-md">
-                {editingSetId ? '更新する' : '登録する'}
-              </button>
+              <button onClick={handleSubmit} className="flex-1 py-3 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition shadow-md">{editingSetId ? '更新する' : '登録する'}</button>
             </div>
           </div>
         </div>

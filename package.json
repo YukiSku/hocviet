@@ -16,9 +16,11 @@
     "@capacitor/cli": "6.2.0",
     "@capacitor/core": "6.2.0",
     "@capacitor/preferences": "6.0.2",
+    "@tanstack/react-query": "^5.102.8",
     "capacitor-native-settings": "6.0.1",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-intersection-observer": "^11.0.1"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

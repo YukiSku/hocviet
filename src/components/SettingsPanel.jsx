@@ -302,6 +302,8 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
                 <li>@capacitor-community/text-to-speech: Copyright © Capacitor Community</li>
                 <li>Tailwind CSS: Copyright © Tailwind Labs, Inc.</li>
                 <li>Vite: Copyright © Evan You and Vite contributors</li>
+                <li>TanStack Query: Copyright © TanStack</li>
+                <li>react-intersection-observer: Copyright © Maurits Meester</li>
               </ul>
             </div>
 

@@ -139,6 +139,57 @@ export async function getWordsByTags(tagNames) {
   return words;
 }
 
+/**
+ * 単語リストをページネーション付きで取得する（検索・フィルタ対応）
+ */
+export async function getWordsPaginated({ limit = 20, offset = 0, searchQuery = '', filterTag = null }) {
+  if (!db) await initDb();
+  const database = getDb();
+
+  let query = '';
+  let params = [];
+
+  if (filterTag) {
+    query = `
+      SELECT DISTINCT w.* FROM words w
+      JOIN word_tags wt ON w.id = wt.word_id
+      JOIN tags t ON wt.tag_id = t.id
+      WHERE t.name = ?
+    `;
+    params.push(filterTag);
+
+    if (searchQuery) {
+      query += ` AND (w.spelling LIKE ? OR w.meaning LIKE ? OR w.note LIKE ?)`;
+      const like = `%${searchQuery}%`;
+      params.push(like, like, like);
+    }
+  } else {
+    query = `SELECT * FROM words w`;
+    if (searchQuery) {
+      query += ` WHERE (w.spelling LIKE ? OR w.meaning LIKE ? OR w.note LIKE ?)`;
+      const like = `%${searchQuery}%`;
+      params.push(like, like, like);
+    }
+  }
+
+  query += ` ORDER BY w.created_at DESC LIMIT ? OFFSET ?`;
+  params.push(limit, offset);
+
+  const result = await database.query(query, params);
+  const words = result.values ?? [];
+
+  // 各単語のタグを個別に取得（パフォーマンス向上のため本来はJOINが望ましいが、現在の設計に合わせる）
+  for (const word of words) {
+    const tagsResult = await database.query(
+      `SELECT t.name FROM tags t JOIN word_tags wt ON wt.tag_id = t.id WHERE wt.word_id = ?`,
+      [word.id]
+    );
+    word.tags = (tagsResult.values ?? []).map((t) => t.name);
+  }
+
+  return words;
+}
+
 async function linkTag(wordId, tagName, inTransaction = false) {
   const database = getDb();
   const trimmed = tagName.trim();
