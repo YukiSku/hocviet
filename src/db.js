@@ -328,13 +328,14 @@ export async function addMinimalPairSet(items) {
   const database = getDb();
   await database.beginTransaction();
   try {
-    const res = await database.run('INSERT INTO minimal_pair_sets DEFAULT VALUES');
+    const res = await database.run('INSERT INTO minimal_pair_sets DEFAULT VALUES', [], false);
     const setId = res.changes.lastId;
 
     for (const item of items) {
       await database.run(
         'INSERT INTO minimal_pair_items (set_id, spelling, meaning) VALUES (?, ?, ?)',
-        [setId, item.spelling, item.meaning]
+        [setId, item.spelling, item.meaning],
+        false
       );
     }
     await database.commitTransaction();
@@ -354,12 +355,13 @@ export async function updateMinimalPairSet(setId, items) {
   await database.beginTransaction();
   try {
     // 既存のアイテムを削除して再登録
-    await database.run('DELETE FROM minimal_pair_items WHERE set_id = ?', [setId]);
+    await database.run('DELETE FROM minimal_pair_items WHERE set_id = ?', [setId], false);
 
     for (const item of items) {
       await database.run(
         'INSERT INTO minimal_pair_items (set_id, spelling, meaning) VALUES (?, ?, ?)',
-        [setId, item.spelling, item.meaning]
+        [setId, item.spelling, item.meaning],
+        false
       );
     }
     await database.commitTransaction();

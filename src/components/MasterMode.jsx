@@ -302,6 +302,7 @@ function MinimalPairManager() {
   const { speak } = useTTS();
   const [sets, setSets] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSetId, setEditingSetId] = useState(null);
 
@@ -317,6 +318,17 @@ function MinimalPairManager() {
   }
 
   useEffect(() => { refresh(); }, []);
+
+  const filteredSets = useMemo(() => {
+    if (!searchQuery.trim()) return sets;
+    const lowerQuery = searchQuery.toLowerCase();
+    return sets.filter(set =>
+      set.items.some(item =>
+        item.spelling.toLowerCase().includes(lowerQuery) ||
+        item.meaning.toLowerCase().includes(lowerQuery)
+      )
+    );
+  }, [sets, searchQuery]);
 
   function resetForm() {
     setFormItems([{ spelling: '', meaning: '' }, { spelling: '', meaning: '' }]);
@@ -335,7 +347,7 @@ function MinimalPairManager() {
 
   function updateItem(index, field, value) {
     const newItems = [...formItems];
-    newItems[index][field] = value;
+    newItems[index] = { ...newItems[index], [field]: value };
     setFormItems(newItems);
   }
 
@@ -347,14 +359,18 @@ function MinimalPairManager() {
       return;
     }
 
-    if (editingSetId) {
-      await updateMinimalPairSet(editingSetId, validItems);
-    } else {
-      await addMinimalPairSet(validItems);
+    try {
+      if (editingSetId) {
+        await updateMinimalPairSet(editingSetId, validItems);
+      } else {
+        await addMinimalPairSet(validItems);
+      }
+      resetForm();
+      await refresh();
+    } catch (err) {
+      console.error('Failed to save minimal pair set:', err);
+      alert('保存に失敗しました。');
     }
-
-    resetForm();
-    await refresh();
   }
 
   function handleEdit(set) {
@@ -371,13 +387,26 @@ function MinimalPairManager() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-[108px] z-10 bg-white dark:bg-gray-900 pt-1 shadow-sm pb-4">
+      <div className="sticky top-[108px] z-10 bg-white dark:bg-gray-900 pt-1 space-y-4 shadow-sm pb-4">
         <button
           onClick={() => setIsModalOpen(true)}
           className="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold hover:bg-indigo-700 transition shadow-md flex items-center justify-center gap-2"
         >
           <span>+</span><span>聞き分けセットを登録</span>
         </button>
+
+        <div className="relative">
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="セット内の単語を検索..."
+            className="w-full rounded-full border pl-10 pr-10 py-2 bg-gray-100 dark:bg-gray-800 border-transparent focus:bg-white dark:focus:bg-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+          />
+          <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-2 text-gray-400 px-1">✕</button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-3 pb-10">
@@ -399,8 +428,20 @@ function MinimalPairManager() {
               </p>
             </div>
           </div>
+        ) : filteredSets.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-gray-500 dark:text-gray-400">該当するセットが見つかりません</p>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-sm text-blue-600 mt-2 underline"
+              >
+                検索条件をクリア
+              </button>
+            )}
+          </div>
         ) : (
-          sets.map((set) => (
+          filteredSets.map((set) => (
             <div key={set.id} className="rounded-xl bg-white dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 shadow-sm relative group text-left">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded">Set #{set.id}</span>
