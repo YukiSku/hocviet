@@ -147,6 +147,15 @@ export default function PracticeMode({ words, allTags, mode }) {
     );
   }
 
+  function handleGoBack() {
+    setStarted(false);
+    setInput('');
+    setSelectedId(null);
+    setResult(null);
+    setAttemptCount(1);
+    setEditingNote(null);
+  }
+
   if (!started) {
     return (
       <div className="rounded-2xl shadow-md bg-gray-50 dark:bg-gray-800 p-6 space-y-6">
@@ -227,7 +236,7 @@ export default function PracticeMode({ words, allTags, mode }) {
             </span>
           )}
           <button
-            onClick={() => setStarted(false)}
+            onClick={handleGoBack}
             className="text-[10px] text-blue-600 dark:text-blue-400 underline mt-1 font-bold"
           >
             ジャンル・モード変更
