@@ -41,23 +41,32 @@ export async function loadSampleMinimalPairs() {
 
 /**
  * アプリの初回起動時にサンプルデータをインポートする
+ * onProgress: (progress: number) => void  (0 to 100)
  */
-export async function loadInitialDataIfFirstTime() {
+export async function loadInitialDataIfFirstTime(onProgress) {
   // 1. 単語リスト
   const { value: vocabDone } = await Preferences.get({ key: VOCAB_IMPORT_KEY });
   if (vocabDone !== 'true') {
     try {
+      if (onProgress) onProgress(20);
       await loadSampleVocabulary();
+      if (onProgress) onProgress(50);
       await Preferences.set({ key: VOCAB_IMPORT_KEY, value: 'true' });
     } catch (e) { /* ignore */ }
+  } else {
+    if (onProgress) onProgress(50);
   }
 
   // 2. ミニマルペア
   const { value: minimalDone } = await Preferences.get({ key: MINIMAL_IMPORT_KEY });
   if (minimalDone !== 'true') {
     try {
+      if (onProgress) onProgress(70);
       await loadSampleMinimalPairs();
+      if (onProgress) onProgress(100);
       await Preferences.set({ key: MINIMAL_IMPORT_KEY, value: 'true' });
     } catch (e) { /* ignore */ }
+  } else {
+    if (onProgress) onProgress(100);
   }
 }

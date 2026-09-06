@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   addWord, updateWord, deleteWord, getAllWords,
   getAllMinimalPairSets, addMinimalPairSet, updateMinimalPairSet, deleteMinimalPairSet,
-  getWordsPaginated, getAllTags
+  getWordsPaginated, getAllTags, getTotalWordCount
 } from '../db';
 import { useTTS } from '../hooks/useTTS';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -51,6 +51,7 @@ export default function MasterMode() {
 function WordListManager() {
   const { speak } = useTTS();
   const queryClient = useQueryClient();
+  const [totalWordCount, setTotalWordCount] = useState(0);
   const [spelling, setSpelling] = useState('');
   const [meaning, setMeaning] = useState('');
   const [note, setNote] = useState('');
@@ -84,10 +85,11 @@ function WordListManager() {
     initialPageParam: 0,
   });
 
-  // 全タグ取得用
+  // 全タグと総単語数取得用
   const [allTags, setAllTags] = useState([]);
   useEffect(() => {
     getAllTags().then(setAllTags);
+    getTotalWordCount().then(setTotalWordCount);
   }, []);
 
   // 画面最下部に到達したら次を読み込む
@@ -109,8 +111,12 @@ function WordListManager() {
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['words'] });
-    const t = await getAllTags();
+    const [t, count] = await Promise.all([
+      getAllTags(),
+      getTotalWordCount()
+    ]);
     setAllTags(t);
+    setTotalWordCount(count);
   }
 
   async function handleSubmit(e) {
@@ -176,7 +182,7 @@ function WordListManager() {
                   : 'bg-white border-gray-300 text-gray-600 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 hover:border-blue-400'
               }`}
             >
-              すべて
+              すべて ({totalWordCount})
             </button>
             {allTags.map(tag => (
               <button

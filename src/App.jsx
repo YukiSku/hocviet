@@ -18,32 +18,43 @@ function App() {
   const [theme, setThemeState] = useState('system');
   const [initError, setInitError] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingStatus, setLoadingStatus] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
-        setLoadingProgress(10);
+        // 5%〜15%: データベースの初期化
+        setLoadingStatus('Initializing DB...');
+        setLoadingProgress(5);
         await initDb();
-        setLoadingProgress(30);
-        await loadInitialDataIfFirstTime();
-        setLoadingProgress(60);
+        setLoadingProgress(15);
 
-        // 練習モード用に全単語を取得（バックグラウンドで処理し、完了を待つ）
+        // 15%〜85%: 初期データの確認・読み込み
+        setLoadingStatus('Loading Vocabulary...');
+        await loadInitialDataIfFirstTime((p) => {
+          // pは0〜100で来るので、15〜85の範囲に変換
+          setLoadingProgress(Math.floor(15 + (p * 0.7)));
+        });
+        setLoadingProgress(85);
+
+        // 85%〜95%: 単語やタグの取得、UIの準備
+        setLoadingStatus('Preparing UI...');
         const [w, t] = await Promise.all([
           getAllWords(),
           getAllTags()
         ]);
-
         setWords(w);
         setAllTags(t);
-        setLoadingProgress(80);
+        setLoadingProgress(95);
 
+        // 95%〜100%: 設定の読み込みと最終処理
+        setLoadingStatus('Starting App...');
         const savedTheme = await getTheme();
         setThemeState(savedTheme);
         setLoadingProgress(100);
 
         // 完了後、少しだけ待ってから画面を切り替える
-        setTimeout(() => setDbReady(true), 300);
+        setTimeout(() => setDbReady(true), 500);
       } catch (err) {
         console.error('DB init failed:', err);
         setInitError(err.message ?? String(err));
@@ -93,9 +104,14 @@ function App() {
                     style={{ width: `${loadingProgress}%` }}
                   />
                 </div>
-                <p className="text-[10px] font-bold text-center text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-                  {loadingProgress < 100 ? `Đang tải... ${loadingProgress}%` : 'Hoàn thành!'}
-                </p>
+                <div className="flex justify-between items-center px-1">
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                    {loadingStatus}
+                  </p>
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                    {loadingProgress}%
+                  </p>
+                </div>
               </div>
             </div>
           ) : (

@@ -124,6 +124,16 @@ export async function getAllTags() {
   return (result.values ?? []).map((t) => t.name);
 }
 
+/**
+ * 単語の総数を取得する
+ */
+export async function getTotalWordCount() {
+  if (!db) await initDb();
+  const database = getDb();
+  const result = await database.query('SELECT COUNT(*) as count FROM words');
+  return result.values?.[0]?.count ?? 0;
+}
+
 export async function getWordsByTags(tagNames) {
   if (!db) await initDb();
   const database = getDb();
