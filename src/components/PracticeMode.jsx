@@ -1,9 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { checkAnswer, updateWordNote } from '../db';
+import { checkAnswer, updateWordNote, getRandomWord, getRandomOptions } from '../db';
 import { useTTS } from '../hooks/useTTS';
 
 /**
- * フィッシャー–イェーツのシャッフル
+ * 選択肢のシャッフル
  */
 function shuffleArray(array) {
   const cloned = [...array];
@@ -14,8 +14,9 @@ function shuffleArray(array) {
   return cloned;
 }
 
-export default function PracticeMode({ words, allTags, mode }) {
+export default function PracticeMode({ allTags, mode }) {
   const { speak } = useTTS();
+  const [totalCount, setTotalCount] = useState(0);
   const [selectedTags, setSelectedTags] = useState([]);
   const [started, setStarted] = useState(false);
   const [practiceType, setPracticeType] = useState('input'); // 'input' | 'choice'
@@ -28,6 +29,10 @@ export default function PracticeMode({ words, allTags, mode }) {
   const [editingNote, setEditingNote] = useState(null);
   const inputRef = useRef(null);
 
+  useEffect(() => {
+    import('../db').then(db => db.getTotalWordCount().then(setTotalCount));
+  }, []);
+
   // 回答待ち状態（resultがnull）になったら自動でフォーカスを当てる
   useEffect(() => {
     if (started && practiceType === 'input' && result === null) {
@@ -38,57 +43,35 @@ export default function PracticeMode({ words, allTags, mode }) {
     }
   }, [started, practiceType, result, currentWord]);
 
-  const filteredWords = useMemo(() => {
-    if (selectedTags.length === 0) return words;
-    return words.filter(word =>
-      word.tags.some(tag => selectedTags.includes(tag))
-    );
-  }, [words, selectedTags]);
-
   const handleSpeak = async (text, rate = 0.9) => {
     await speak(text, rate);
   };
 
-  function pickRandom(list, excludeId = null) {
-    if (!list || list.length === 0) return null;
-    let candidates = list;
-    if (excludeId !== null && list.length > 1) {
-      candidates = list.filter(w => w.id !== excludeId);
-    }
-    return candidates[Math.floor(Math.random() * candidates.length)];
-  }
-
   /**
-   * 選択肢を生成する
+   * 次の単語をセットアップする
    */
-  function generateOptions(targetWord, allCandidates) {
-    const count = Math.floor(Math.random() * 3) + 3; // 3〜5個
-    let others = allCandidates.filter(w => w.id !== targetWord.id);
-
-    // 候補が足りない場合は、filtered 以外の全単語からも持ってくる
-    if (others.length < count - 1) {
-      others = words.filter(w => w.id !== targetWord.id);
-    }
-
-    const selectedOthers = shuffleArray(others).slice(0, count - 1);
-    return shuffleArray([targetWord, ...selectedOthers]);
-  }
-
-  function handleStart(type) {
-    if (filteredWords.length === 0) {
-      alert('選択したタグに該当する単語がありません');
+  async function setupNextWord(type) {
+    const word = await getRandomWord(selectedTags);
+    if (!word) {
+      alert('該当する単語がありません。単語を登録してください。');
       return;
     }
-    const word = pickRandom(filteredWords);
+
     setCurrentWord(word);
     setPracticeType(type);
 
     if (type === 'choice') {
-      setOptions(generateOptions(word, filteredWords));
+      const count = Math.floor(Math.random() * 3) + 3; // 3〜5個
+      const others = await getRandomOptions(word.id, count - 1, selectedTags);
+      setOptions(shuffleArray([word, ...others]));
     }
 
     setStarted(true);
     setEditingNote(null);
+  }
+
+  function handleStart(type) {
+    setupNextWord(type);
   }
 
   function handleSubmit(e) {
@@ -108,7 +91,7 @@ export default function PracticeMode({ words, allTags, mode }) {
     }
   }
 
-  function handleRepeat() {
+  async function handleRepeat() {
     setInput('');
     setSelectedId(null);
     setResult(null);
@@ -116,22 +99,19 @@ export default function PracticeMode({ words, allTags, mode }) {
     setEditingNote(null);
 
     if (practiceType === 'choice') {
-      setOptions(generateOptions(currentWord, filteredWords));
+      const count = options.length;
+      const others = await getRandomOptions(currentWord.id, count - 1, selectedTags);
+      setOptions(shuffleArray([currentWord, ...others]));
     }
   }
 
   function handleStopRepeat() {
-    const nextWord = pickRandom(filteredWords, currentWord?.id);
-    setCurrentWord(nextWord);
     setInput('');
     setSelectedId(null);
     setResult(null);
     setAttemptCount(1);
     setEditingNote(null);
-
-    if (practiceType === 'choice') {
-      setOptions(generateOptions(nextWord, filteredWords));
-    }
+    setupNextWord(practiceType);
   }
 
   async function handleSaveNote() {
@@ -192,7 +172,7 @@ export default function PracticeMode({ words, allTags, mode }) {
         </div>
 
         <div className="space-y-5 pt-4">
-          {words.length >= 3 && (
+          {totalCount >= 3 && (
             <button
               onClick={() => handleStart('choice')}
               className="w-full rounded-xl bg-indigo-600 text-white py-4 font-bold hover:bg-indigo-700 active:scale-[0.98] transition shadow-md"
@@ -300,7 +280,10 @@ export default function PracticeMode({ words, allTags, mode }) {
 
             return (
               <div key={option.id} className={btnClass} onClick={() => handleSelect(option)}>
-                <span className="flex-1 text-left truncate">{option.spelling}</span>
+                <div className="flex-1 text-left min-w-0 pr-2">
+                  <p className="font-bold truncate">{option.spelling}</p>
+                  {result && <p className="text-sm font-medium opacity-80 truncate">{option.meaning}</p>}
+                </div>
                 {result && (
                   <div className="flex gap-2 shrink-0 ml-2">
                     <button

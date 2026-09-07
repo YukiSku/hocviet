@@ -110,11 +110,87 @@ export async function getAllWords() {
   const database = getDb();
   const wordsResult = await database.query('SELECT * FROM words ORDER BY created_at DESC');
   const words = wordsResult.values ?? [];
+  // 各単語のタグ取得は重いため、全件取得時は注意が必要
   for (const word of words) {
     const tagsResult = await database.query(`SELECT t.name FROM tags t JOIN word_tags wt ON wt.tag_id = t.id WHERE wt.word_id = ?`, [word.id]);
     word.tags = (tagsResult.values ?? []).map((t) => t.name);
   }
   return words;
+}
+
+/**
+ * ランダムに単語を1件取得する（タグ指定対応）
+ */
+export async function getRandomWord(tagNames = []) {
+  if (!db) await initDb();
+  const database = getDb();
+
+  let query = '';
+  let params = [];
+
+  if (tagNames && tagNames.length > 0) {
+    const placeholders = tagNames.map(() => '?').join(',');
+    query = `
+      SELECT DISTINCT w.* FROM words w
+      JOIN word_tags wt ON w.id = wt.word_id
+      JOIN tags t ON wt.tag_id = t.id
+      WHERE t.name IN (${placeholders})
+      ORDER BY RANDOM() LIMIT 1
+    `;
+    params = tagNames;
+  } else {
+    query = `SELECT * FROM words ORDER BY RANDOM() LIMIT 1`;
+  }
+
+  const result = await database.query(query, params);
+  const word = result.values?.[0] ?? null;
+
+  if (word) {
+    const tagsResult = await database.query(
+      `SELECT t.name FROM tags t JOIN word_tags wt ON wt.tag_id = t.id WHERE wt.word_id = ?`,
+      [word.id]
+    );
+    word.tags = (tagsResult.values ?? []).map((t) => t.name);
+  }
+  return word;
+}
+
+/**
+ * 指定した単語以外からランダムに選択肢を取得する
+ */
+export async function getRandomOptions(targetId, count, tagNames = []) {
+  if (!db) await initDb();
+  const database = getDb();
+
+  let query = '';
+  let params = [targetId];
+
+  if (tagNames && tagNames.length > 0) {
+    const placeholders = tagNames.map(() => '?').join(',');
+    query = `
+      SELECT DISTINCT w.* FROM words w
+      JOIN word_tags wt ON w.id = wt.word_id
+      JOIN tags t ON wt.tag_id = t.id
+      WHERE w.id != ? AND t.name IN (${placeholders})
+      ORDER BY RANDOM() LIMIT ?
+    `;
+    params = [targetId, ...tagNames, count];
+  } else {
+    query = `SELECT * FROM words WHERE id != ? ORDER BY RANDOM() LIMIT ?`;
+    params.push(count);
+  }
+
+  const result = await database.query(query, params);
+  const options = result.values ?? [];
+
+  for (const word of options) {
+    const tagsResult = await database.query(
+      `SELECT t.name FROM tags t JOIN word_tags wt ON wt.tag_id = t.id WHERE wt.word_id = ?`,
+      [word.id]
+    );
+    word.tags = (tagsResult.values ?? []).map((t) => t.name);
+  }
+  return options;
 }
 
 export async function getAllTags() {

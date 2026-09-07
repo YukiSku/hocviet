@@ -39,11 +39,7 @@ function App() {
 
         // 85%〜95%: 単語やタグの取得、UIの準備
         setLoadingStatus('Preparing UI...');
-        const [w, t] = await Promise.all([
-          getAllWords(),
-          getAllTags()
-        ]);
-        setWords(w);
+        const t = await getAllTags();
         setAllTags(t);
         setLoadingProgress(95);
 
@@ -70,8 +66,7 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (tab === 'practice') {
-      getAllWords().then(setWords);
+    if (tab === 'practice' || tab === 'master') {
       getAllTags().then(setAllTags);
     }
   }, [tab]);
@@ -92,9 +87,10 @@ function App() {
             </div>
           ) : !dbReady ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-in fade-in duration-700">
-              <div className="text-center space-y-2">
-                <p className="text-3xl font-black italic text-blue-600 dark:text-blue-400 tracking-tighter">Học Viết</p>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Viết nhiều, nhớ lâu!</p>
+              <div className="text-center space-y-1">
+                <p className="text-4xl font-black text-blue-600 dark:text-blue-400 tracking-tighter">Repeat & Learn</p>
+                <p className="text-2xl font-bold italic text-gray-700 dark:text-gray-200">Tiếng Việt</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 pt-2">Viết nhiều, nhớ lâu!</p>
               </div>
 
               <div className="w-full max-w-[240px] space-y-3">
@@ -147,9 +143,7 @@ function App() {
 
               <div className="mt-2">
                 {tab === 'practice' && (
-                  words.length > 0
-                    ? <PracticeMode words={words} allTags={allTags} mode="word" />
-                    : <p className="text-center text-gray-500 dark:text-gray-400">先に単語を登録してください</p>
+                  <PracticeMode allTags={allTags} mode="word" />
                 )}
                 {tab === 'minimal' && <MinimalPairMode />}
                 {tab === 'master' && <MasterMode />}
@@ -157,7 +151,7 @@ function App() {
                   <SettingsPanel
                     theme={theme}
                     onThemeChange={handleThemeChange}
-                    onImportDone={async () => setWords(await getAllWords())}
+                    onImportDone={async () => setAllTags(await getAllTags())}
                   />
                 )}
               </div>

@@ -110,7 +110,8 @@ function WordListManager() {
   }
 
   async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: ['words'] });
+    // クエリをリセットして最初から再取得（スクロール位置はトップに戻るが、データの整合性は保たれる）
+    await queryClient.resetQueries({ queryKey: ['words'] });
     const [t, count] = await Promise.all([
       getAllTags(),
       getTotalWordCount()
@@ -124,17 +125,23 @@ function WordListManager() {
     if (!spelling.trim() || !meaning.trim()) return;
     const tags = tagsInput.split(/[,、]/).map(t => t.trim()).filter(Boolean);
 
-    if (editingId) {
-      await updateWord(editingId, spelling, meaning, tags, note);
-    } else {
-      const result = await addWord(spelling, meaning, tags, note);
-      if (result === null) {
-        alert('この単語は既に登録されています。');
-        return;
+    try {
+      if (editingId) {
+        await updateWord(editingId, spelling, meaning, tags, note);
+      } else {
+        const result = await addWord(spelling, meaning, tags, note);
+        if (result === null) {
+          alert('この単語は既に登録されています。');
+          return;
+        }
       }
+      setIsModalOpen(false); // 先に閉じる
+      resetForm();
+      await refresh();
+    } catch (err) {
+      console.error('Failed to save word:', err);
+      alert('保存に失敗しました。');
     }
-    resetForm();
-    await refresh();
   }
 
   function handleEdit(word) {
@@ -145,14 +152,18 @@ function WordListManager() {
 
   async function handleDelete(id) {
     if (!confirm('この単語を削除しますか？')) return;
-    await deleteWord(id);
-    await refresh();
+    try {
+      await deleteWord(id);
+      await refresh();
+    } catch (err) {
+      console.error('Failed to delete word:', err);
+    }
   }
 
   return (
     <div className="space-y-4">
       {/* 検索・追加エリア */}
-      <div className="sticky top-[108px] z-10 bg-white dark:bg-gray-900 pt-1 space-y-4 shadow-sm pb-4">
+      <div className="sticky top-[104px] z-10 bg-white dark:bg-gray-900 pt-1 space-y-4 shadow-sm pb-4">
         <button
           onClick={() => setIsModalOpen(true)}
           className="w-full rounded-xl bg-blue-600 text-white py-3 font-bold hover:bg-blue-700 transition shadow-md flex items-center justify-center gap-2"
@@ -365,6 +376,7 @@ function MinimalPairManager() {
       } else {
         await addMinimalPairSet(validItems);
       }
+      setIsModalOpen(false); // 先に閉じる
       resetForm();
       await refresh();
     } catch (err) {
@@ -387,7 +399,7 @@ function MinimalPairManager() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-[108px] z-10 bg-white dark:bg-gray-900 pt-1 space-y-4 shadow-sm pb-4">
+      <div className="sticky top-[104px] z-10 bg-white dark:bg-gray-900 pt-1 space-y-4 shadow-sm pb-4">
         <button
           onClick={() => setIsModalOpen(true)}
           className="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold hover:bg-indigo-700 transition shadow-md flex items-center justify-center gap-2"
