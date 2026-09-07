@@ -3,6 +3,7 @@ import { NativeSettings, AndroidSettings } from 'capacitor-native-settings';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { parseCsv } from '../csv';
 import { importWordsFromCsv, importMinimalPairsFromCsv } from '../db';
+import { loadSampleVocabulary, loadSampleMinimalPairs } from '../initialData';
 
 export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
   const fileInputRef = useRef(null);
@@ -161,7 +162,6 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
           <button
             onClick={async () => {
               try {
-                const { loadSampleVocabulary } = await import('../initialData');
                 const count = await loadSampleVocabulary();
                 alert(`${count}件の新規単語を追加しました。`);
                 onImportDone?.();
@@ -176,7 +176,6 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
           <button
             onClick={async () => {
               try {
-                const { loadSampleMinimalPairs } = await import('../initialData');
                 const count = await loadSampleMinimalPairs();
                 alert(`${count}件の聞き分けセットを追加しました。`);
               } catch (e) {

@@ -8,7 +8,15 @@ import MasterMode from './components/MasterMode';
 import SettingsPanel from './components/SettingsPanel';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const queryClient = new QueryClient();
+// グローバルでの初期化エラーを防ぐため、オプションを明示的に指定
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function App() {
   const [dbReady, setDbReady] = useState(false);
@@ -78,7 +86,15 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors pb-8">
+      <div
+        className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors pb-8"
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+          paddingRight: 'env(safe-area-inset-right, 0px)',
+        }}
+      >
         <div className="max-w-md mx-auto p-4">
           {initError ? (
             <div className="p-4 text-center text-red-600">

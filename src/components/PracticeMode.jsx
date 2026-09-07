@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { checkAnswer, updateWordNote, getRandomWord, getRandomOptions } from '../db';
+import { checkAnswer, updateWordNote, getRandomWord, getRandomOptions, getTotalWordCount } from '../db';
 import { useTTS } from '../hooks/useTTS';
 
 /**
@@ -30,7 +30,7 @@ export default function PracticeMode({ allTags, mode }) {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    import('../db').then(db => db.getTotalWordCount().then(setTotalCount));
+    getTotalWordCount().then(setTotalCount);
   }, []);
 
   // 回答待ち状態（resultがnull）になったら自動でフォーカスを当てる

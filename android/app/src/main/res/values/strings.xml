@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RL ベトナム語</string>
+    <string name="title_activity_main">RL ベトナム語</string>
+    <string name="package_name">com.ysapp.repeatlearn_viet</string>
+    <string name="custom_url_scheme">com.ysapp.repeatlearn_viet</string>
+</resources>
