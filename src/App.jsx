@@ -21,7 +21,6 @@ const queryClient = new QueryClient({
 function App() {
   const [dbReady, setDbReady] = useState(false);
   const [tab, setTab] = useState('practice'); // 'practice' | 'minimal' | 'master' | 'settings'
-  const [words, setWords] = useState([]);
   const [allTags, setAllTags] = useState([]);
   const [theme, setThemeState] = useState('system');
   const [initError, setInitError] = useState(null);
@@ -167,7 +166,10 @@ function App() {
                   <SettingsPanel
                     theme={theme}
                     onThemeChange={handleThemeChange}
-                    onImportDone={async () => setAllTags(await getAllTags())}
+                    onImportDone={async () => {
+                      await queryClient.resetQueries({ queryKey: ['words'] });
+                      setAllTags(await getAllTags());
+                    }}
                   />
                 )}
               </div>

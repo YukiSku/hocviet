@@ -5,26 +5,39 @@ let db = null;
 let initPromise = null;
 
 export async function initDb() {
+  if (db) return db;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
     try {
-      // console.log('[hocviet] DB Init: Starting...');
-
       // 1. インスタンス生成
-      sqlite = new SQLiteConnection(CapacitorSQLite);
+      if (!sqlite) {
+        sqlite = new SQLiteConnection(CapacitorSQLite);
+      }
       const dbName = 'repeatlearn_viet';
 
-      // 2. 接続を試行（整合性チェックは不整合時にnullを返す可能性があるため、直接openへ）
-      try {
-        db = await sqlite.createConnection(dbName, false, 'no-encryption', 1, false);
-      } catch (e) {
+      // 2. v8必須: 接続の整合性チェック
+      await sqlite.checkConnectionsConsistency();
+
+      // 3. 既存の接続があるか確認
+      const isConn = await sqlite.isConnection(dbName, false);
+
+      if (isConn.result) {
+        // すでに接続がある場合は取得
         db = await sqlite.retrieveConnection(dbName, false);
+      } else {
+        // ない場合は新規作成
+        db = await sqlite.createConnection(dbName, false, 'no-encryption', 1, false);
       }
 
-      await db.open();
-      // console.log('[hocviet] DB Init: Success');
+      if (!db) {
+        throw new Error(`Failed to obtain connection for ${dbName}`);
+      }
 
+      // 4. データベースをオープン
+      await db.open();
+
+      // 5. スキーマ作成
       await db.execute(`
         CREATE TABLE IF NOT EXISTS words (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,6 +77,7 @@ export async function initDb() {
     } catch (e) {
       console.error('[hocviet] DB Init Error:', e);
       initPromise = null;
+      db = null;
       throw e;
     }
   })();
@@ -73,13 +87,11 @@ export async function initDb() {
 
 export function getDb() {
   if (!db) {
-    // 開発中のデバッグを容易にするため、あえて具体的な例外を投げる
-    throw new Error('DATABASE_NOT_READY_CHECK_LOGCAT');
+    throw new Error('DATABASE_NOT_READY');
   }
   return db;
 }
 
-// 他の関数は変更なし
 export async function addWord(spelling, meaning, tagNames = [], note = '', inTransaction = false) {
   if (!db) await initDb();
   const database = getDb();
@@ -110,11 +122,92 @@ export async function getAllWords() {
   const database = getDb();
   const wordsResult = await database.query('SELECT * FROM words ORDER BY created_at DESC');
   const words = wordsResult.values ?? [];
-  // 各単語のタグ取得は重いため、全件取得時は注意が必要
   for (const word of words) {
     const tagsResult = await database.query(`SELECT t.name FROM tags t JOIN word_tags wt ON wt.tag_id = t.id WHERE wt.word_id = ?`, [word.id]);
     word.tags = (tagsResult.values ?? []).map((t) => t.name);
   }
+  return words;
+}
+
+export async function getAllTags() {
+  if (!db) await initDb();
+  const database = getDb();
+  const result = await database.query('SELECT name FROM tags ORDER BY name ASC');
+  return (result.values ?? []).map((t) => t.name);
+}
+
+/**
+ * 単語の総数を取得する
+ */
+export async function getTotalWordCount() {
+  if (!db) await initDb();
+  const database = getDb();
+  const result = await database.query('SELECT COUNT(*) as count FROM words');
+  return result.values?.[0]?.count ?? 0;
+}
+
+export async function getWordsByTags(tagNames) {
+  if (!db) await initDb();
+  const database = getDb();
+  if (!tagNames || tagNames.length === 0) return getAllWords();
+  const placeholders = tagNames.map(() => '?').join(',');
+  const query = `SELECT DISTINCT w.* FROM words w JOIN word_tags wt ON w.id = wt.word_id JOIN tags t ON wt.tag_id = t.id WHERE t.name IN (${placeholders}) ORDER BY w.created_at DESC`;
+  const wordsResult = await database.query(query, tagNames);
+  const words = wordsResult.values ?? [];
+  for (const word of words) {
+    const tagsResult = await database.query(`SELECT t.name FROM tags t JOIN word_tags wt ON wt.tag_id = t.id WHERE wt.word_id = ?`, [word.id]);
+    word.tags = (tagsResult.values ?? []).map((t) => t.name);
+  }
+  return words;
+}
+
+/**
+ * 単語リストをページネーション付きで取得する（検索・フィルタ対応）
+ */
+export async function getWordsPaginated({ limit = 20, offset = 0, searchQuery = '', filterTag = null }) {
+  if (!db) await initDb();
+  const database = getDb();
+
+  let query = '';
+  let params = [];
+
+  if (filterTag) {
+    query = `
+      SELECT DISTINCT w.* FROM words w
+      JOIN word_tags wt ON w.id = wt.word_id
+      JOIN tags t ON wt.tag_id = t.id
+      WHERE t.name = ?
+    `;
+    params.push(filterTag);
+
+    if (searchQuery) {
+      query += ` AND (w.spelling LIKE ? OR w.meaning LIKE ? OR w.note LIKE ?)`;
+      const like = `%${searchQuery}%`;
+      params.push(like, like, like);
+    }
+  } else {
+    query = `SELECT * FROM words w`;
+    if (searchQuery) {
+      query += ` WHERE (w.spelling LIKE ? OR w.meaning LIKE ? OR w.note LIKE ?)`;
+      const like = `%${searchQuery}%`;
+      params.push(like, like, like);
+    }
+  }
+
+  query += ` ORDER BY w.created_at DESC, w.id DESC LIMIT ? OFFSET ?`;
+  params.push(limit, offset);
+
+  const result = await database.query(query, params);
+  const words = result.values ?? [];
+
+  for (const word of words) {
+    const tagsResult = await database.query(
+      `SELECT t.name FROM tags t JOIN word_tags wt ON wt.tag_id = t.id WHERE wt.word_id = ?`,
+      [word.id]
+    );
+    word.tags = (tagsResult.values ?? []).map((t) => t.name);
+  }
+
   return words;
 }
 
@@ -193,97 +286,16 @@ export async function getRandomOptions(targetId, count, tagNames = []) {
   return options;
 }
 
-export async function getAllTags() {
-  if (!db) await initDb();
-  const database = getDb();
-  const result = await database.query('SELECT name FROM tags ORDER BY name ASC');
-  return (result.values ?? []).map((t) => t.name);
-}
-
-/**
- * 単語の総数を取得する
- */
-export async function getTotalWordCount() {
-  if (!db) await initDb();
-  const database = getDb();
-  const result = await database.query('SELECT COUNT(*) as count FROM words');
-  return result.values?.[0]?.count ?? 0;
-}
-
-export async function getWordsByTags(tagNames) {
-  if (!db) await initDb();
-  const database = getDb();
-  if (!tagNames || tagNames.length === 0) return getAllWords();
-  const placeholders = tagNames.map(() => '?').join(',');
-  const query = `SELECT DISTINCT w.* FROM words w JOIN word_tags wt ON w.id = wt.word_id JOIN tags t ON wt.tag_id = t.id WHERE t.name IN (${placeholders}) ORDER BY w.created_at DESC`;
-  const wordsResult = await database.query(query, tagNames);
-  const words = wordsResult.values ?? [];
-  for (const word of words) {
-    const tagsResult = await database.query(`SELECT t.name FROM tags t JOIN word_tags wt ON wt.tag_id = t.id WHERE wt.word_id = ?`, [word.id]);
-    word.tags = (tagsResult.values ?? []).map((t) => t.name);
-  }
-  return words;
-}
-
-/**
- * 単語リストをページネーション付きで取得する（検索・フィルタ対応）
- */
-export async function getWordsPaginated({ limit = 20, offset = 0, searchQuery = '', filterTag = null }) {
-  if (!db) await initDb();
-  const database = getDb();
-
-  let query = '';
-  let params = [];
-
-  if (filterTag) {
-    query = `
-      SELECT DISTINCT w.* FROM words w
-      JOIN word_tags wt ON w.id = wt.word_id
-      JOIN tags t ON wt.tag_id = t.id
-      WHERE t.name = ?
-    `;
-    params.push(filterTag);
-
-    if (searchQuery) {
-      query += ` AND (w.spelling LIKE ? OR w.meaning LIKE ? OR w.note LIKE ?)`;
-      const like = `%${searchQuery}%`;
-      params.push(like, like, like);
-    }
-  } else {
-    query = `SELECT * FROM words w`;
-    if (searchQuery) {
-      query += ` WHERE (w.spelling LIKE ? OR w.meaning LIKE ? OR w.note LIKE ?)`;
-      const like = `%${searchQuery}%`;
-      params.push(like, like, like);
-    }
-  }
-
-  query += ` ORDER BY w.created_at DESC LIMIT ? OFFSET ?`;
-  params.push(limit, offset);
-
-  const result = await database.query(query, params);
-  const words = result.values ?? [];
-
-  // 各単語のタグを個別に取得（パフォーマンス向上のため本来はJOINが望ましいが、現在の設計に合わせる）
-  for (const word of words) {
-    const tagsResult = await database.query(
-      `SELECT t.name FROM tags t JOIN word_tags wt ON wt.tag_id = t.id WHERE wt.word_id = ?`,
-      [word.id]
-    );
-    word.tags = (tagsResult.values ?? []).map((t) => t.name);
-  }
-
-  return words;
-}
-
 async function linkTag(wordId, tagName, inTransaction = false) {
   const database = getDb();
   const trimmed = tagName.trim();
   if (!trimmed) return;
   await database.run('INSERT OR IGNORE INTO tags (name) VALUES (?)', [trimmed], !inTransaction);
   const tagResult = await database.query('SELECT id FROM tags WHERE name = ?', [trimmed]);
-  const tagId = tagResult.values[0].id;
-  await database.run('INSERT OR IGNORE INTO word_tags (word_id, tag_id) VALUES (?, ?)', [wordId, tagId], !inTransaction);
+  if (tagResult.values && tagResult.values.length > 0) {
+    const tagId = tagResult.values[0].id;
+    await database.run('INSERT OR IGNORE INTO word_tags (word_id, tag_id) VALUES (?, ?)', [wordId, tagId], !inTransaction);
+  }
 }
 
 export async function importWordsFromCsv(rows) {
@@ -293,7 +305,6 @@ export async function importWordsFromCsv(rows) {
   try {
     let count = 0;
     for (const row of rows) {
-      // 日本語ヘッダーや引用符への対応
       const spelling = row.spelling || row['spelling'];
       const meaning = row.meaning || row['meaning'];
       const tags = row.tags || row['tags'];
@@ -323,18 +334,16 @@ export async function importMinimalPairsFromCsv(rows) {
   const database = getDb();
   await database.beginTransaction();
   try {
-    // 既存の全アイテムをチェック用に取得
     const existingResult = await database.query('SELECT spelling, set_id FROM minimal_pair_items');
     const existingItems = existingResult.values ?? [];
 
-    const setsMap = new Map(); // CSVのset_id -> データベースのsetId
+    const setsMap = new Map();
     let count = 0;
 
     for (const row of rows) {
       const { set_id, spelling, meaning } = row;
       if (!set_id || !spelling || !meaning) continue;
 
-      // すでに同じ綴りがデータベースに存在するかチェック
       const isDuplicate = existingItems.some(item => item.spelling === spelling);
       if (isDuplicate) continue;
 
@@ -381,9 +390,6 @@ export async function getMinimalPairItems(setId) {
   return result.values ?? [];
 }
 
-/**
- * 全てのミニマルペアセットをアイテム付きで取得する
- */
 export async function getAllMinimalPairSets() {
   if (!db) await initDb();
   const database = getDb();
@@ -396,64 +402,53 @@ export async function getAllMinimalPairSets() {
   return sets;
 }
 
-/**
- * ミニマルペアセットを新規登録する
- */
-export async function addMinimalPairSet(items) {
+export async function addMinimalPairSet(items, inTransaction = false) {
   if (!db) await initDb();
   const database = getDb();
-  await database.beginTransaction();
+  if (!inTransaction) await database.beginTransaction();
   try {
-    const res = await database.run('INSERT INTO minimal_pair_sets DEFAULT VALUES', [], false);
+    const res = await database.run('INSERT INTO minimal_pair_sets DEFAULT VALUES', [], !inTransaction);
     const setId = res.changes.lastId;
 
     for (const item of items) {
       await database.run(
         'INSERT INTO minimal_pair_items (set_id, spelling, meaning) VALUES (?, ?, ?)',
         [setId, item.spelling, item.meaning],
-        false
+        !inTransaction
       );
     }
-    await database.commitTransaction();
+    if (!inTransaction) await database.commitTransaction();
     return setId;
   } catch (e) {
-    await database.rollbackTransaction();
+    if (!inTransaction) await database.rollbackTransaction();
     throw e;
   }
 }
 
-/**
- * ミニマルペアセットを更新する
- */
-export async function updateMinimalPairSet(setId, items) {
+export async function updateMinimalPairSet(setId, items, inTransaction = false) {
   if (!db) await initDb();
   const database = getDb();
-  await database.beginTransaction();
+  if (!inTransaction) await database.beginTransaction();
   try {
-    // 既存のアイテムを削除して再登録
-    await database.run('DELETE FROM minimal_pair_items WHERE set_id = ?', [setId], false);
+    await database.run('DELETE FROM minimal_pair_items WHERE set_id = ?', [setId], !inTransaction);
 
     for (const item of items) {
       await database.run(
         'INSERT INTO minimal_pair_items (set_id, spelling, meaning) VALUES (?, ?, ?)',
         [setId, item.spelling, item.meaning],
-        false
+        !inTransaction
       );
     }
-    await database.commitTransaction();
+    if (!inTransaction) await database.commitTransaction();
   } catch (e) {
-    await database.rollbackTransaction();
+    if (!inTransaction) await database.rollbackTransaction();
     throw e;
   }
 }
 
-/**
- * ミニマルペアセットを削除する
- */
 export async function deleteMinimalPairSet(setId) {
   if (!db) await initDb();
   const database = getDb();
-  // ON DELETE CASCADE なので親を消せば子も消える
   await database.run('DELETE FROM minimal_pair_sets WHERE id = ?', [setId]);
 }
 
@@ -479,4 +474,72 @@ export function checkAnswer(input, target, mode = 'word') {
   const targets = target.split(/[;；,，]/).map(t => t.trim()).filter(Boolean);
   const normalizedInput = normalizeText(input);
   return targets.some(t => normalizeText(t) === normalizedInput);
+}
+
+// --- バックアップ・復元用 ---
+
+export const IMPORT_MODE = {
+  SKIP: 'skip',
+  OVERWRITE: 'overwrite',
+  RESTORE: 'restore'
+};
+
+export async function exportFullBackup() {
+  const words = await getAllWords();
+  const minimalPairs = await getAllMinimalPairSets();
+  return {
+    version: 1,
+    exported_at: new Date().toISOString(),
+    words,
+    minimalPairs
+  };
+}
+
+export async function importFullBackup(data, mode) {
+  if (!db) await initDb();
+  const database = getDb();
+
+  await database.beginTransaction();
+  try {
+    if (mode === IMPORT_MODE.RESTORE) {
+      await database.execute('DELETE FROM word_tags');
+      await database.execute('DELETE FROM tags');
+      await database.execute('DELETE FROM words');
+      await database.execute('DELETE FROM minimal_pair_items');
+      await database.execute('DELETE FROM minimal_pair_sets');
+    }
+
+    let wordCount = 0;
+    if (data.words && Array.isArray(data.words)) {
+      for (const w of data.words) {
+        const existing = await database.query('SELECT id FROM words WHERE spelling = ?', [w.spelling]);
+        const exists = existing.values && existing.values.length > 0;
+
+        if (exists) {
+          if (mode === IMPORT_MODE.OVERWRITE || mode === IMPORT_MODE.RESTORE) {
+            const wordId = existing.values[0].id;
+            await updateWord(wordId, w.spelling, w.meaning, w.tags || [], w.note || '', true);
+            wordCount++;
+          }
+        } else {
+          await addWord(w.spelling, w.meaning, w.tags || [], w.note || '', true);
+          wordCount++;
+        }
+      }
+    }
+
+    let pairCount = 0;
+    if (data.minimalPairs && Array.isArray(data.minimalPairs)) {
+      for (const set of data.minimalPairs) {
+        await addMinimalPairSet(set.items, true);
+        pairCount++;
+      }
+    }
+
+    await database.commitTransaction();
+    return { wordCount, pairCount };
+  } catch (e) {
+    await database.rollbackTransaction();
+    throw e;
+  }
 }
