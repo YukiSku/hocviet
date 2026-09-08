@@ -552,10 +552,28 @@ export async function importFullBackup(data, mode) {
         if (wordId || mode !== IMPORT_MODE.SKIP) wordCount++;
       }
     }
+    // 2. 聞き分けセットのインポート
     let pairCount = 0;
     if (data.minimalPairs && Array.isArray(data.minimalPairs)) {
+      // 既存の全セットを取得して、比較用の「正規化キー」を作成
+      const existingSets = await getAllMinimalPairSets();
+      const existingSetKeys = new Set(existingSets.map(s =>
+        s.items.map(i => i.spelling).sort().join('|')
+      ));
+
       for (const set of data.minimalPairs) {
+        if (!set.items || !Array.isArray(set.items)) continue;
+
+        // インポートしようとしているセットのキーを作成
+        const newSetKey = set.items.map(i => i.spelling).sort().join('|');
+
+        // すでに同じ組み合わせのセットが存在する場合はスキップ（既存を優先）
+        if (existingSetKeys.has(newSetKey)) {
+          continue;
+        }
+
         await addMinimalPairSet(set.items, true);
+        existingSetKeys.add(newSetKey); // 重複登録を防ぐために追加
         pairCount++;
       }
     }

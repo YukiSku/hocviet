@@ -261,32 +261,56 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
             </div>
           </div>
           <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-left">
-            <h3 className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest text-left">CSVインポート</h3>
-            <div className="space-y-3">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isImporting}
-                className={`w-full rounded-lg border py-3 font-medium transition-colors ${
-                  isImporting
-                    ? 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                {isImporting ? 'インポート中...' : '単語CSVを選択'}
-              </button>
-              <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileSelect} className="hidden" />
-              <button
-                onClick={() => minimalPairInputRef.current?.click()}
-                disabled={isMinimalImporting}
-                className={`w-full rounded-lg border py-3 font-medium transition-colors ${
-                  isMinimalImporting
-                    ? 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                {isMinimalImporting ? 'インポート中...' : '聞き分けCSVを選択'}
-              </button>
-              <input ref={minimalPairInputRef} type="file" accept=".csv" onChange={handleMinimalPairFileSelect} className="hidden" />
+            <h3 className="text-xs font-bold text-gray-400 mb-4 uppercase tracking-widest text-left border-b pb-2">CSVインポートの仕様</h3>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tighter">【共通ルール】</p>
+                <ul className="text-xs text-gray-500 space-y-1 ml-1 list-disc list-inside leading-relaxed">
+                  <li>ファイル形式: UTF-8形式のCSV</li>
+                  <li>1行目には必ずヘッダ行（項目名）が必要です</li>
+                  <li>各項目はカンマ( , )で区切ってください</li>
+                  <li>データ内にカンマを含む場合はカラムデータ全体をダブルクォーテーション( " )で囲んでください</li>
+                </ul>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 ml-1">単語リスト (項目名: spelling, meaning, tags, note)</p>
+                <p className="text-xs text-gray-400 mb-2 ml-1 leading-relaxed">
+                  ※ tags、訳 はカンマ( , )または読点( 、 )区切りで複数入力可能です。<br />
+                  ※ note は例文や補足情報を入力してください。
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isImporting}
+                  className={`w-full rounded-lg border py-3 font-medium transition-colors ${
+                    isImporting
+                      ? 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 cursor-not-allowed'
+                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm'
+                  }`}
+                >
+                  {isImporting ? 'インポート中...' : '単語CSVを選択'}
+                </button>
+                <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileSelect} className="hidden" />
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 ml-1">聞き分けセット (項目名: set_id, spelling, meaning)</p>
+                <p className="text-xs text-gray-400 mb-2 ml-1 leading-relaxed">
+                  ※ set_id はグループ化するための共通の数字を入力してください。
+                </p>
+                <button
+                  onClick={() => minimalPairInputRef.current?.click()}
+                  disabled={isMinimalImporting}
+                  className={`w-full rounded-lg border py-3 font-medium transition-colors ${
+                    isMinimalImporting
+                      ? 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 cursor-not-allowed'
+                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm'
+                  }`}
+                >
+                  {isMinimalImporting ? 'インポート中...' : '聞き分けCSVを選択'}
+                </button>
+                <input ref={minimalPairInputRef} type="file" accept=".csv" onChange={handleMinimalPairFileSelect} className="hidden" />
+              </div>
             </div>
           </div>
         </div>
