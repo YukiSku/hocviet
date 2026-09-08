@@ -31,7 +31,7 @@ export default function PracticeMode({ allTags, mode }) {
 
   useEffect(() => {
     getTotalWordCount().then(setTotalCount);
-  }, []);
+  }, [allTags]); // タグ（マスタ）が更新されたら総数も再取得する可能性があるため
 
   // 回答待ち状態（resultがnull）になったら自動でフォーカスを当てる
   useEffect(() => {
@@ -172,20 +172,27 @@ export default function PracticeMode({ allTags, mode }) {
         </div>
 
         <div className="space-y-5 pt-4">
-          {totalCount >= 3 && (
+          {totalCount >= 3 ? (
             <button
               onClick={() => handleStart('choice')}
               className="w-full rounded-xl bg-indigo-600 text-white py-4 font-bold hover:bg-indigo-700 active:scale-[0.98] transition shadow-md"
             >
               {selectedTags.length > 0 ? `${selectedTags.length}個のジャンルで` : 'すべての単語で'}選択練習を開始
             </button>
+          ) : (
+            <p className="text-center text-xs text-gray-400 bg-gray-100 dark:bg-gray-700/50 py-3 rounded-lg">選択練習には3語以上の登録が必要です</p>
           )}
 
           <button
             onClick={() => handleStart('input')}
-            className="w-full rounded-xl bg-blue-600 text-white py-4 font-bold hover:bg-blue-700 active:scale-[0.98] transition shadow-md"
+            disabled={totalCount === 0}
+            className={`w-full rounded-xl py-4 font-bold active:scale-[0.98] transition shadow-md ${
+              totalCount === 0
+                ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed shadow-none'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
           >
-            {selectedTags.length > 0 ? `${selectedTags.length}個のジャンルで` : 'すべての単語で'}入力練習を開始
+            {totalCount === 0 ? '単語を登録してください' : (selectedTags.length > 0 ? `${selectedTags.length}個のジャンルで` : 'すべての単語で') + '入力練習を開始'}
           </button>
         </div>
       </div>

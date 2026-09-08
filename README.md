@@ -35,3 +35,24 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+## 開発環境構成メモ (v2.0.1)
+この構成を変更すると SQLite の初期化等で不整合が発生する可能性があるため、アップデート時は注意してください。
+
+- **Gradle バージョン**: 9.7.1
+- **Android Gradle Plugin (AGP) バージョン**: 9.4.0
+- **JDK/JRE バージョン**: Java 21
+- **対応 API レベル**: 37 (Android 17)
+
+### Capacitor プラグイン バージョン一覧
+- **@capacitor/core**: ^8.0.0
+- **@capacitor-community/sqlite**: ^8.1.1
+- **@capacitor-community/text-to-speech**: ^8.0.2
+- **capacitor-native-settings**: ^8.0.0
+- **@capacitor/filesystem**: ^8.0.0
+- **@capacitor/preferences**: ^8.0.0
+- **@capacitor/share**: ^8.0.0
+- **@tanstack/react-query**: ^5.102.8
+- **react-intersection-observer**: ^11.0.1

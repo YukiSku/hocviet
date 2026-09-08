@@ -135,7 +135,7 @@ function WordListManager() {
           return;
         }
       }
-      setIsModalOpen(false); // 先に閉じる
+      setIsModalOpen(false);
       resetForm();
       await refresh();
     } catch (err) {
@@ -157,6 +157,7 @@ function WordListManager() {
       await refresh();
     } catch (err) {
       console.error('Failed to delete word:', err);
+      alert('削除に失敗しました。');
     }
   }
 
@@ -393,8 +394,13 @@ function MinimalPairManager() {
 
   async function handleDelete(id) {
     if (!confirm('この聞き分けセットを削除しますか？')) return;
-    await deleteMinimalPairSet(id);
-    await refresh();
+    try {
+      await deleteMinimalPairSet(id);
+      await refresh();
+    } catch (err) {
+      console.error('Failed to delete minimal pair set:', err);
+      alert('削除に失敗しました。');
+    }
   }
 
   return (
