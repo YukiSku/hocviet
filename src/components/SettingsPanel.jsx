@@ -216,7 +216,7 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 text-left">
                 {isViSupported
                   ? '音声機能を利用可能です。'
-                  : 'お使いの端末でベトナム語の音声合成が検出されませんでした。'}
+                  : '音声機能が利用できません。'}
               </p>
             </div>
           </div>
@@ -432,6 +432,64 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
                 you may not use this file except in compliance with the License.
                 You may obtain a copy of the License at: http://www.apache.org/licenses/LICENSE-2.0
               </p>
+            </div>
+          </div>
+          <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+            <p className="font-bold text-gray-500 dark:text-gray-400 text-left">プライバシーポリシー</p>
+            <div className="space-y-3 text-left">
+              <div>
+                <p className="font-semibold">1. 個人情報の収集について</p>
+                <p>本アプリは、ログインアカウントを作らせて個人情報を収集したり、第三者へ提供したりなんて後々面倒になりそうなことはしません。</p>
+              </div>
+              <div>
+                <p className="font-semibold">2. データの保存と管理</p>
+                <p>ユーザーが本アプリに入力した単語やメモなどのデータは、すべてユーザーが使用している端末内に保存されています。勝手にどこかへアップロードするなんてことはしません。</p>
+              </div>
+              <div>
+                <p className="font-semibold">3. 外部サービスの使用について</p>
+                <p>本アプリは、音声読み上げ機能（Text-To-Speech）のために、Android OS標準の音声エンジンを使用します。また、アプリの実行基盤として Google Play Services を使用しています。これらのサービスにおける情報の取り扱いは、それぞれの提供元のプライバシーポリシーに従います。</p>
+              </div>
+              <div>
+                <p className="font-semibold">4. 個人情報保護に関する詳細</p>
+                <a
+                  href="https://yukisku.github.io/hocviet/privacy.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 underline break-all"
+                >
+                  https://yukisku.github.io/hocviet/privacy.html
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+            <p className="font-bold text-gray-500 dark:text-gray-400 text-left">アプリと開発者について</p>
+            <div className="space-y-3 text-left">
+              <div>
+                <p className="font-semibold">1. 開発者について</p>
+                <p>Yuuki Sakano (坂野 由宇希 @yukisku)</p>
+                <p>臨床薬剤師、大学講師、野生のエンジニア。ITは独学です。インスタとかXとか面倒なのでやってません。</p>
+              </div>
+              <div>
+                <p className="font-semibold">2. アプリ開発について</p>
+                <p>もともとは自分の学習モチベのため、広告とか余計なものに邪魔されない学習しやすいアプリ開発を目指しました。収益化なんてしません。</p>
+                <p>
+                  このアプリは github リポジトリでソースコードを公開しています。<br />
+                  <a
+                    href="https://github.com/YukiSku/hocviet.git"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 underline break-all"
+                  >
+                    https://github.com/YukiSku/hocviet.git
+                  </a>
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold">3. 連絡先</p>
+                <p>基本的にお返事はできません。ごめんなさい。</p>
+                <p>yuki.sku275@gmail.com</p>
+              </div>
             </div>
           </div>
         </div>

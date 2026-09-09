@@ -3,6 +3,7 @@ import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 let sqlite = null;
 let db = null;
 let initPromise = null;
+const DB_NAME = 'repeatlearn_viet';
 
 /**
  * データベースの初期化
@@ -16,24 +17,23 @@ export async function initDb() {
       if (!sqlite) {
         sqlite = new SQLiteConnection(CapacitorSQLite);
       }
-      const dbName = 'repeatlearn_viet';
 
       // v8必須: 接続の整合性チェック
       await sqlite.checkConnectionsConsistency();
 
-      const isConn = await sqlite.isConnection(dbName, false);
+      const isConn = await sqlite.isConnection(DB_NAME, false);
       if (isConn.result) {
         try {
-          db = await sqlite.retrieveConnection(dbName, false);
+          db = await sqlite.retrieveConnection(DB_NAME, false);
         } catch (e) {
-          await sqlite.closeConnection(dbName, false);
-          db = await sqlite.createConnection(dbName, false, 'no-encryption', 1, false);
+          await sqlite.closeConnection(DB_NAME, false);
+          db = await sqlite.createConnection(DB_NAME, false, 'no-encryption', 1, false);
         }
       } else {
-        db = await sqlite.createConnection(dbName, false, 'no-encryption', 1, false);
+        db = await sqlite.createConnection(DB_NAME, false, 'no-encryption', 1, false);
       }
 
-      if (!db) throw new Error(`Failed to obtain connection for ${dbName}`);
+      if (!db) throw new Error(`Failed to obtain connection for ${DB_NAME}`);
 
       await db.open();
 
@@ -91,76 +91,107 @@ export function getDb() {
 }
 
 /**
- * 単語の追加
+ * コネクションを強制的に破棄し、次回の initDb() で再接続させる。
+ * beginTransaction/rollbackTransaction 自体が失敗した場合、ネイティブ側のSQLite接続が
+ * 中途半端なトランザクション状態のまま残る可能性があるため、その接続を明示的に閉じてから
+ * JS側の状態（db, initPromise）をリセットする。これにより「操作不能のまま固まる」事態を防ぐ。
+ * closeConnection自体が失敗しても、db/initPromiseはリセットする（アプリを引きずったままにしない）。
  */
-export async function addWord(spelling, meaning, tagNames = [], note = '', inTransaction = false) {
+async function resetConnection() {
+  try {
+    if (sqlite) {
+      await sqlite.closeConnection(DB_NAME, false);
+    }
+  } catch (closeError) {
+    console.error('[hocviet] Failed to close broken connection during reset:', closeError);
+  } finally {
+    db = null;
+    initPromise = null;
+  }
+}
+
+/**
+ * トランザクション管理とDB初期化を集約した共通ヘルパー。
+ * inTransaction=true の場合は呼び出し元が既にトランザクションを開始している前提で、
+ * ここでは begin/commit/rollback を行わずに fn(database) の結果だけを返す。
+ * inTransaction=false の場合はこの関数自身が begin/commit/rollback を管理する。
+ * begin/rollback 自体が失敗した場合は resetConnection() でコネクションを再接続可能な状態に戻す
+ * （元の例外は握りつぶさず、そのまま呼び出し元に伝播させる）。
+ */
+async function withTransaction(inTransaction, fn) {
   if (!db) await initDb();
   const database = getDb();
+  const shouldManage = !inTransaction;
 
-  const shouldManageTransaction = !inTransaction;
-  if (shouldManageTransaction) await database.beginTransaction();
+  if (shouldManage) {
+    try {
+      await database.beginTransaction();
+    } catch (beginError) {
+      console.error('[hocviet] beginTransaction failed, resetting connection:', beginError);
+      await resetConnection();
+      throw beginError;
+    }
+  }
 
   try {
+    const result = await fn(database);
+    if (shouldManage) await database.commitTransaction();
+    return result;
+  } catch (e) {
+    if (shouldManage) {
+      try {
+        await database.rollbackTransaction();
+      } catch (rollbackError) {
+        console.error('[hocviet] rollbackTransaction failed, resetting connection:', rollbackError);
+        await resetConnection();
+      }
+    }
+    throw e;
+  }
+}
+
+/**
+ * 単語の追加
+ * 戻り値: 追加した単語のID。spellingが既に存在する場合は null（追加せず正常終了）。
+ */
+export async function addWord(spelling, meaning, tagNames = [], note = '', inTransaction = false) {
+  return withTransaction(inTransaction, async (database) => {
     const existing = await database.query('SELECT id FROM words WHERE spelling = ?', [spelling]);
     if (existing.values && existing.values.length > 0) {
-      if (shouldManageTransaction) await database.rollbackTransaction();
       return null;
     }
     const result = await database.run('INSERT INTO words (spelling, meaning, note) VALUES (?, ?, ?)', [spelling, meaning, note], false);
     const wordId = result.changes.lastId;
 
     for (const tagName of tagNames) {
-      await linkTag(wordId, tagName, true);
+      await linkTag(wordId, tagName);
     }
 
-    if (shouldManageTransaction) await database.commitTransaction();
     return wordId;
-  } catch (e) {
-    if (shouldManageTransaction) await database.rollbackTransaction();
-    throw e;
-  }
+  });
 }
 
 /**
  * 単語の更新
  */
 export async function updateWord(id, spelling, meaning, tagNames = [], note = '', inTransaction = false) {
-  if (!db) await initDb();
-  const database = getDb();
-
-  const shouldManageTransaction = !inTransaction;
-  if (shouldManageTransaction) await database.beginTransaction();
-
-  try {
+  return withTransaction(inTransaction, async (database) => {
     await database.run('UPDATE words SET spelling = ?, meaning = ?, note = ? WHERE id = ?', [spelling, meaning, note, id], false);
     await database.run('DELETE FROM word_tags WHERE word_id = ?', [id], false);
 
     for (const tagName of tagNames) {
-      await linkTag(id, tagName, true);
+      await linkTag(id, tagName);
     }
-
-    if (shouldManageTransaction) await database.commitTransaction();
-  } catch (e) {
-    if (shouldManageTransaction) await database.rollbackTransaction();
-    throw e;
-  }
+  });
 }
 
 /**
  * 単語の削除
  */
 export async function deleteWord(id, inTransaction = false) {
-  if (!db) await initDb();
-  const database = getDb();
-  const shouldManageTransaction = !inTransaction;
-  if (shouldManageTransaction) await database.beginTransaction();
-  try {
-    await database.run('DELETE FROM words WHERE id = ?', [id], false);
-    if (shouldManageTransaction) await database.commitTransaction();
-  } catch (e) {
-    if (shouldManageTransaction) await database.rollbackTransaction();
-    throw e;
-  }
+  return withTransaction(inTransaction, (database) =>
+    database.run('DELETE FROM words WHERE id = ?', [id], false)
+  );
 }
 
 /**
@@ -304,15 +335,17 @@ export async function getRandomOptions(targetId, count, tagNames = []) {
 /**
  * タグの紐付け
  */
-async function linkTag(wordId, tagName, inTransaction = false) {
+// 呼び出し元は addWord/updateWord のみで、常に明示的なトランザクション内から呼ばれる前提。
+// そのため run() の transaction 引数は常に false（プラグイン側の自動トランザクションを無効化）で固定。
+async function linkTag(wordId, tagName) {
   const database = getDb();
   const trimmed = tagName.trim();
   if (!trimmed) return;
-  await database.run('INSERT OR IGNORE INTO tags (name) VALUES (?)', [trimmed], !inTransaction);
+  await database.run('INSERT OR IGNORE INTO tags (name) VALUES (?)', [trimmed], false);
   const tagResult = await database.query('SELECT id FROM tags WHERE name = ?', [trimmed]);
   if (tagResult.values && tagResult.values.length > 0) {
     const tagId = tagResult.values[0].id;
-    await database.run('INSERT OR IGNORE INTO word_tags (word_id, tag_id) VALUES (?, ?)', [wordId, tagId], !inTransaction);
+    await database.run('INSERT OR IGNORE INTO word_tags (word_id, tag_id) VALUES (?, ?)', [wordId, tagId], false);
   }
 }
 
@@ -320,10 +353,7 @@ async function linkTag(wordId, tagName, inTransaction = false) {
  * CSVインポート (単語)
  */
 export async function importWordsFromCsv(rows) {
-  if (!db) await initDb();
-  const database = getDb();
-  await database.beginTransaction();
-  try {
+  return withTransaction(false, async (database) => {
     let count = 0;
     for (const row of rows) {
       const spelling = row.spelling || row['spelling'];
@@ -336,12 +366,8 @@ export async function importWordsFromCsv(rows) {
       const wordId = await addWord(spelling, meaning, tagList, note || '', true);
       if (wordId) count++;
     }
-    await database.commitTransaction();
     return count;
-  } catch (e) {
-    await database.rollbackTransaction();
-    throw e;
-  }
+  });
 }
 
 /**
@@ -357,10 +383,7 @@ export async function updateWordNote(id, note) {
  * CSVインポート (聞き分け)
  */
 export async function importMinimalPairsFromCsv(rows) {
-  if (!db) await initDb();
-  const database = getDb();
-  await database.beginTransaction();
-  try {
+  return withTransaction(false, async (database) => {
     const existingResult = await database.query('SELECT spelling, set_id FROM minimal_pair_items');
     const existingItems = existingResult.values ?? [];
     const setsMap = new Map();
@@ -381,12 +404,8 @@ export async function importMinimalPairsFromCsv(rows) {
       await database.run('INSERT INTO minimal_pair_items (set_id, spelling, meaning) VALUES (?, ?, ?)', [dbSetId, spelling, meaning], false);
       count++;
     }
-    await database.commitTransaction();
     return count;
-  } catch (e) {
-    await database.rollbackTransaction();
-    throw e;
-  }
+  });
 }
 
 /**
@@ -437,11 +456,7 @@ export async function getAllMinimalPairSets() {
  * セットの追加
  */
 export async function addMinimalPairSet(items, inTransaction = false) {
-  if (!db) await initDb();
-  const database = getDb();
-  const shouldManageTransaction = !inTransaction;
-  if (shouldManageTransaction) await database.beginTransaction();
-  try {
+  return withTransaction(inTransaction, async (database) => {
     const res = await database.run('INSERT INTO minimal_pair_sets DEFAULT VALUES', [], false);
     const setId = res.changes.lastId;
     for (const item of items) {
@@ -451,23 +466,15 @@ export async function addMinimalPairSet(items, inTransaction = false) {
         false
       );
     }
-    if (shouldManageTransaction) await database.commitTransaction();
     return setId;
-  } catch (e) {
-    if (shouldManageTransaction) await database.rollbackTransaction();
-    throw e;
-  }
+  });
 }
 
 /**
  * セットの更新
  */
 export async function updateMinimalPairSet(setId, items, inTransaction = false) {
-  if (!db) await initDb();
-  const database = getDb();
-  const shouldManageTransaction = !inTransaction;
-  if (shouldManageTransaction) await database.beginTransaction();
-  try {
+  return withTransaction(inTransaction, async (database) => {
     await database.run('DELETE FROM minimal_pair_items WHERE set_id = ?', [setId], false);
     for (const item of items) {
       await database.run(
@@ -476,28 +483,16 @@ export async function updateMinimalPairSet(setId, items, inTransaction = false) 
         false
       );
     }
-    if (shouldManageTransaction) await database.commitTransaction();
-  } catch (e) {
-    if (shouldManageTransaction) await database.rollbackTransaction();
-    throw e;
-  }
+  });
 }
 
 /**
  * セットの削除
  */
 export async function deleteMinimalPairSet(setId, inTransaction = false) {
-  if (!db) await initDb();
-  const database = getDb();
-  const shouldManageTransaction = !inTransaction;
-  if (shouldManageTransaction) await database.beginTransaction();
-  try {
-    await database.run('DELETE FROM minimal_pair_sets WHERE id = ?', [setId], false);
-    if (shouldManageTransaction) await database.commitTransaction();
-  } catch (e) {
-    if (shouldManageTransaction) await database.rollbackTransaction();
-    throw e;
-  }
+  return withTransaction(inTransaction, (database) =>
+    database.run('DELETE FROM minimal_pair_sets WHERE id = ?', [setId], false)
+  );
 }
 
 /**
@@ -534,100 +529,98 @@ export async function exportFullBackup() {
 }
 
 export async function importFullBackup(data, mode) {
-  if (!db) await initDb();
-  const database = getDb();
-
-  await database.beginTransaction();
+  let counts;
   try {
-    // RESTOREモードの場合は既存データを全削除
-    if (mode === IMPORT_MODE.RESTORE) {
-      // 複数のSQLを一つのexecuteで実行し、第2引数にfalseを指定して二重トランザクションを防止
-      await database.execute(`
-        DELETE FROM word_tags;
-        DELETE FROM tags;
-        DELETE FROM words;
-        DELETE FROM minimal_pair_items;
-        DELETE FROM minimal_pair_sets;
-      `, false);
-      // console.log('[hocviet] All data cleared for restore');
-    }
+    counts = await withTransaction(false, async (database) => {
+      // RESTOREモードの場合は既存データを全削除
+      if (mode === IMPORT_MODE.RESTORE) {
+        await database.execute(`
+          DELETE FROM word_tags;
+          DELETE FROM tags;
+          DELETE FROM words;
+          DELETE FROM minimal_pair_items;
+          DELETE FROM minimal_pair_sets;
+        `, false);
+      }
 
-    // 1. 単語のインポート
-    let wordCount = 0;
-    if (data.words && Array.isArray(data.words)) {
-      for (const w of data.words) {
-        if (!w.spelling || !w.meaning) continue;
-
-        let wordIdToUpdate = null;
-        let shouldAdd = true;
-
-        // RESTOREモード以外の場合のみ既存データの存在チェックを行う
+      // 1. 単語のインポート
+      let wordCount = 0;
+      if (data.words && Array.isArray(data.words)) {
+        const existingWordMap = new Map();
         if (mode !== IMPORT_MODE.RESTORE) {
-          const existing = await database.query('SELECT id FROM words WHERE spelling = ?', [w.spelling]);
-          const exists = existing.values && existing.values.length > 0;
-
-          if (exists) {
-            if (mode === IMPORT_MODE.OVERWRITE) {
-              wordIdToUpdate = existing.values[0].id;
-            } else {
-              shouldAdd = false; // SKIPモード
-            }
+          const existingWords = await database.query('SELECT id, spelling FROM words');
+          for (const w of existingWords.values ?? []) {
+            existingWordMap.set(w.spelling, w.id);
           }
         }
 
-        // 保存実行（inTransaction=trueを渡し、内部でのbeginTransactionを抑制）
-        if (wordIdToUpdate) {
-          await updateWord(wordIdToUpdate, w.spelling, w.meaning, w.tags || [], w.note || '', true);
-          wordCount++;
-        } else if (shouldAdd) {
-          const wordId = await addWord(w.spelling, w.meaning, w.tags || [], w.note || '', true);
-          if (wordId) wordCount++;
+        for (const w of data.words) {
+          if (!w.spelling || !w.meaning) continue;
+          let wordIdToUpdate = null;
+          let shouldAdd = true;
+
+          if (mode !== IMPORT_MODE.RESTORE) {
+            const existingId = existingWordMap.get(w.spelling);
+            if (existingId !== undefined) {
+              if (mode === IMPORT_MODE.OVERWRITE) {
+                wordIdToUpdate = existingId;
+              } else {
+                shouldAdd = false;
+              }
+            }
+          }
+
+          if (wordIdToUpdate) {
+            await updateWord(wordIdToUpdate, w.spelling, w.meaning, w.tags || [], w.note || '', true);
+            wordCount++;
+          } else if (shouldAdd) {
+            const wordId = await addWord(w.spelling, w.meaning, w.tags || [], w.note || '', true);
+            if (wordId) {
+              wordCount++;
+              existingWordMap.set(w.spelling, wordId);
+            }
+          }
         }
       }
-    }
 
-    // 2. 聞き分けセットのインポート
-    let pairCount = 0;
-    if (data.minimalPairs && Array.isArray(data.minimalPairs)) {
-      // 復元モードの時は既存セットのキー作成をスキップ
-      const existingSets = mode === IMPORT_MODE.RESTORE ? null : await getAllMinimalPairSets();
-      const existingSetKeys = existingSets ? new Set(existingSets.map(s =>
-        (s.items || []).map(i => i.spelling).sort().join('|')
-      )) : new Set();
+      // 2. 聞き分けセットのインポート
+      let pairCount = 0;
+      if (data.minimalPairs && Array.isArray(data.minimalPairs)) {
+        const existingSets = mode === IMPORT_MODE.RESTORE ? null : await getAllMinimalPairSets();
+        const existingSetKeys = existingSets ? new Set(existingSets.map(s =>
+          (s.items || []).map(i => i.spelling).sort().join('|')
+        )) : new Set();
 
-      for (const set of data.minimalPairs) {
-        if (!set.items || !Array.isArray(set.items)) continue;
-
-        if (existingSets) {
-          const newSetKey = set.items.map(i => i.spelling).sort().join('|');
-          if (existingSetKeys.has(newSetKey)) continue;
-          existingSetKeys.add(newSetKey);
+        for (const set of data.minimalPairs) {
+          if (!set.items || !Array.isArray(set.items)) continue;
+          if (existingSets) {
+            const newSetKey = set.items.map(i => i.spelling).sort().join('|');
+            if (existingSetKeys.has(newSetKey)) continue;
+            existingSetKeys.add(newSetKey);
+          }
+          const cleanItems = set.items.map(item => ({
+            spelling: item.spelling,
+            meaning: item.meaning
+          }));
+          await addMinimalPairSet(cleanItems, true);
+          pairCount++;
         }
-
-        // 純粋なアイテムデータのみを取り出して登録（inTransaction=trueを指定）
-        const cleanItems = set.items.map(item => ({
-          spelling: item.spelling,
-          meaning: item.meaning
-        }));
-        await addMinimalPairSet(cleanItems, true);
-        pairCount++;
       }
-    }
 
-    await database.commitTransaction();
-
-    // 整合性維持のため、どこからも参照されていないタグを掃除する（トランザクション外で実行）
-    try {
-      await database.execute('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM word_tags)', true);
-    } catch (e) { /* ignore cleanup error */ }
-
-    return { wordCount, pairCount };
+      return { wordCount, pairCount };
+    });
   } catch (e) {
-    // 失敗時は確実にロールバック
-    try {
-      await database.rollbackTransaction();
-    } catch (rollbackError) { /* ignore rollback error if already rolled back */ }
     console.error('[hocviet] Full backup import error:', e);
     throw e;
   }
+
+  // 整合性維持のため、どこからも参照されていないタグを掃除する（コミット成功後に確実に実行）
+  try {
+    const database = getDb();
+    await database.execute('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM word_tags)', false);
+  } catch (e) {
+    console.error('[hocviet] Cleanup tags error:', e);
+  }
+
+  return counts;
 }
