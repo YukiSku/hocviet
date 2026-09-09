@@ -536,51 +536,98 @@ export async function exportFullBackup() {
 export async function importFullBackup(data, mode) {
   if (!db) await initDb();
   const database = getDb();
+
   await database.beginTransaction();
   try {
+    // RESTOREモードの場合は既存データを全削除
     if (mode === IMPORT_MODE.RESTORE) {
-      await database.execute('DELETE FROM word_tags');
-      await database.execute('DELETE FROM tags');
-      await database.execute('DELETE FROM words');
-      await database.execute('DELETE FROM minimal_pair_items');
-      await database.execute('DELETE FROM minimal_pair_sets');
+      // 複数のSQLを一つのexecuteで実行し、第2引数にfalseを指定して二重トランザクションを防止
+      await database.execute(`
+        DELETE FROM word_tags;
+        DELETE FROM tags;
+        DELETE FROM words;
+        DELETE FROM minimal_pair_items;
+        DELETE FROM minimal_pair_sets;
+      `, false);
+      // console.log('[hocviet] All data cleared for restore');
     }
+
+    // 1. 単語のインポート
     let wordCount = 0;
     if (data.words && Array.isArray(data.words)) {
       for (const w of data.words) {
-        const wordId = await addWord(w.spelling, w.meaning, w.tags || [], w.note || '', true);
-        if (wordId || mode !== IMPORT_MODE.SKIP) wordCount++;
+        if (!w.spelling || !w.meaning) continue;
+
+        let wordIdToUpdate = null;
+        let shouldAdd = true;
+
+        // RESTOREモード以外の場合のみ既存データの存在チェックを行う
+        if (mode !== IMPORT_MODE.RESTORE) {
+          const existing = await database.query('SELECT id FROM words WHERE spelling = ?', [w.spelling]);
+          const exists = existing.values && existing.values.length > 0;
+
+          if (exists) {
+            if (mode === IMPORT_MODE.OVERWRITE) {
+              wordIdToUpdate = existing.values[0].id;
+            } else {
+              shouldAdd = false; // SKIPモード
+            }
+          }
+        }
+
+        // 保存実行（inTransaction=trueを渡し、内部でのbeginTransactionを抑制）
+        if (wordIdToUpdate) {
+          await updateWord(wordIdToUpdate, w.spelling, w.meaning, w.tags || [], w.note || '', true);
+          wordCount++;
+        } else if (shouldAdd) {
+          const wordId = await addWord(w.spelling, w.meaning, w.tags || [], w.note || '', true);
+          if (wordId) wordCount++;
+        }
       }
     }
+
     // 2. 聞き分けセットのインポート
     let pairCount = 0;
     if (data.minimalPairs && Array.isArray(data.minimalPairs)) {
-      // 既存の全セットを取得して、比較用の「正規化キー」を作成
-      const existingSets = await getAllMinimalPairSets();
-      const existingSetKeys = new Set(existingSets.map(s =>
-        s.items.map(i => i.spelling).sort().join('|')
-      ));
+      // 復元モードの時は既存セットのキー作成をスキップ
+      const existingSets = mode === IMPORT_MODE.RESTORE ? null : await getAllMinimalPairSets();
+      const existingSetKeys = existingSets ? new Set(existingSets.map(s =>
+        (s.items || []).map(i => i.spelling).sort().join('|')
+      )) : new Set();
 
       for (const set of data.minimalPairs) {
         if (!set.items || !Array.isArray(set.items)) continue;
 
-        // インポートしようとしているセットのキーを作成
-        const newSetKey = set.items.map(i => i.spelling).sort().join('|');
-
-        // すでに同じ組み合わせのセットが存在する場合はスキップ（既存を優先）
-        if (existingSetKeys.has(newSetKey)) {
-          continue;
+        if (existingSets) {
+          const newSetKey = set.items.map(i => i.spelling).sort().join('|');
+          if (existingSetKeys.has(newSetKey)) continue;
+          existingSetKeys.add(newSetKey);
         }
 
-        await addMinimalPairSet(set.items, true);
-        existingSetKeys.add(newSetKey); // 重複登録を防ぐために追加
+        // 純粋なアイテムデータのみを取り出して登録（inTransaction=trueを指定）
+        const cleanItems = set.items.map(item => ({
+          spelling: item.spelling,
+          meaning: item.meaning
+        }));
+        await addMinimalPairSet(cleanItems, true);
         pairCount++;
       }
     }
+
     await database.commitTransaction();
+
+    // 整合性維持のため、どこからも参照されていないタグを掃除する（トランザクション外で実行）
+    try {
+      await database.execute('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM word_tags)', true);
+    } catch (e) { /* ignore cleanup error */ }
+
     return { wordCount, pairCount };
   } catch (e) {
-    await database.rollbackTransaction();
+    // 失敗時は確実にロールバック
+    try {
+      await database.rollbackTransaction();
+    } catch (rollbackError) { /* ignore rollback error if already rolled back */ }
+    console.error('[hocviet] Full backup import error:', e);
     throw e;
   }
 }

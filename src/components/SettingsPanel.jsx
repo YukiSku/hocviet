@@ -22,7 +22,7 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
   const [isImporting, setIsImporting] = useState(false);
   const [isMinimalImporting, setIsMinimalImporting] = useState(false);
   const [isBackupProcessing, setIsBackupProcessing] = useState(false);
-  const [importMode, setImportMode] = useState(IMPORT_MODE.SKIP);
+  const [importMode, setImportMode] = useState(IMPORT_MODE.RESTORE);
 
   const [isViSupported, setIsViSupported] = useState(true);
 
@@ -159,13 +159,22 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
     setBackupStatus(null);
     const reader = new FileReader();
     reader.onload = async (event) => {
+      let data;
       try {
-        const data = JSON.parse(event.target.result);
+        data = JSON.parse(event.target.result);
+      } catch (err) {
+        setBackupStatus({ error: 'ファイルが正しいJSON形式ではありません' });
+        setIsBackupProcessing(false);
+        return;
+      }
+
+      try {
         const result = await importFullBackup(data, importMode);
         setBackupStatus({ success: true, ...result });
         onImportDone?.();
       } catch (err) {
-        setBackupStatus({ error: 'バックアップファイルの形式が正しくありません' });
+        console.error('Import process failed:', err);
+        setBackupStatus({ error: '保存処理中にエラーが発生しました' });
       } finally {
         setIsBackupProcessing(false);
       }
@@ -264,7 +273,7 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
             <h3 className="text-xs font-bold text-gray-400 mb-4 uppercase tracking-widest text-left border-b pb-2">CSVインポートの仕様</h3>
             <div className="space-y-6">
               <div className="space-y-2">
-                <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tighter">【共通ルール】</p>
+                <p className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-tighter">【共通ルール】</p>
                 <ul className="text-xs text-gray-500 space-y-1 ml-1 list-disc list-inside leading-relaxed">
                   <li>ファイル形式: UTF-8形式のCSV</li>
                   <li>1行目には必ずヘッダ行（項目名）が必要です</li>
@@ -340,26 +349,19 @@ export default function SettingsPanel({ theme, onThemeChange, onImportDone }) {
           </div>
           <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest text-left">インポート設定</h3>
-            <div className="grid grid-cols-1 gap-2">
-              {[
-                { id: IMPORT_MODE.SKIP, label: '重複をスキップして追加', desc: '既存の単語は維持します' },
-                { id: IMPORT_MODE.OVERWRITE, label: '既存データを上書き', desc: '綴りが同じ単語を最新版に更新します' },
-                { id: IMPORT_MODE.RESTORE, label: 'すべて削除して復元', desc: '全データを消去してファイルを復元します' },
-              ].map(mode => (
-                <label key={mode.id} className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer text-left ${importMode === mode.id ? 'bg-white dark:bg-gray-800 border-blue-500 ring-1 ring-blue-500' : 'bg-transparent border-gray-200 dark:border-gray-700'}`}>
-                  <input
-                    type="radio"
-                    name="importMode"
-                    className="mt-1"
-                    checked={importMode === mode.id}
-                    onChange={() => setImportMode(mode.id)}
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{mode.label}</p>
-                    <p className="text-[10px] text-gray-500">{mode.desc}</p>
-                  </div>
-                </label>
-              ))}
+            <div className="relative">
+              <select
+                value={importMode}
+                onChange={(e) => setImportMode(e.target.value)}
+                className="w-full p-3 pr-10 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-bold text-gray-700 dark:text-gray-200 appearance-none focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+              >
+                <option value={IMPORT_MODE.RESTORE}>すべてリセットして復元 (推奨)</option>
+                <option value={IMPORT_MODE.OVERWRITE}>既存データを上書き更新</option>
+                <option value={IMPORT_MODE.SKIP}>重複をスキップして追加</option>
+              </select>
+              <div className="absolute right-4 top-3.5 pointer-events-none text-gray-400 text-xs">
+                ▼
+              </div>
             </div>
             <button
               onClick={() => backupInputRef.current?.click()}
